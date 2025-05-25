@@ -1,39 +1,36 @@
-http://localhost:3000/auth/confirm?token_hash=pkce_929b98d7b8efc1d1156330aa322b7f5e308ee3afda4e5fa8981b7216&type=recovery&next=http%3a%2f%2flocalhost%3a3000%2fauth%2fupdate-password
+# ☕ CondorCoders Café Virtual
 
+**Café Virtual** es un experimento en construcción que busca convertirse en un espacio de networking virtual, similar a [Gather Town](https://www.gather.town/), donde los miembros de una comunidad puedan interactuar a través de avatares, trabajar juntos en tiempo real y chatear.
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+> 🔧 Por ahora, **Café Virtual** funciona como un _playground_ para aprender y experimentar con Supabase, implementando características en tiempo real usando ejemplos de [Supabase UI](https://supabase.com/ui).
 
-## Getting Started
+---
 
-First, run the development server:
+## Funcionalidades Implementadas
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Hasta el momento, hemos seguido varios ejemplos oficiales de Supabase, integrando estas funcionalidades:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Autenticación
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+🔗 [https://supabase.com/ui/docs/nextjs/password-based-auth](https://supabase.com/ui/docs/nextjs/password-based-auth)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Registro e inicio de sesión con correo electrónico y contraseña.
+- Persistencia de sesión.
 
-## Learn More
+🎥 Míralo en Youtube -> [https://youtu.be/EvMYKrBaAJQ?si=bQwNfA0J9979Ilkr](https://youtu.be/EvMYKrBaAJQ?si=bQwNfA0J9979Ilkr)
 
-To learn more about Next.js, take a look at the following resources:
+### Cursores en Tiempo Real
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+🔗 [https://supabase.com/ui/docs/nextjs/realtime-cursor](https://supabase.com/ui/docs/nextjs/realtime-cursor)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Seguimiento del movimiento del mouse para simular presencia de usuarios en un espacio compartido.
 
-## Deploy on Vercel
+🎥 Míralo en Youtube -> [https://youtu.be/iJf1mjYBy8k?si=-Gnh4BgUoQiMW97K](https://youtu.be/iJf1mjYBy8k?si=-Gnh4BgUoQiMW97K)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Chat en Tiempo Real
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+🔗 [https://supabase.com/ui/docs/nextjs/realtime-chat](https://supabase.com/ui/docs/nextjs/realtime-chat)
+
+- Chat estilo "lobby" donde todos los usuarios pueden ver y enviar mensajes en tiempo real.
+- Mensajes asociados al usuario autenticado.
+- Guardamos los mensajes en la tabla de `messages`.
