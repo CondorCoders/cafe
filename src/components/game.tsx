@@ -48,6 +48,7 @@ export const Game = () => {
   };
 
   const hitBomb = () => {
+    player.current?.setVelocity(0);
     player.current?.setTint(0xff0000);
     player.current?.anims.play("turn");
     gameOver.current = true;
