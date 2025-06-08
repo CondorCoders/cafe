@@ -2,8 +2,6 @@
 
 **Café Virtual** es un experimento en construcción que busca convertirse en un espacio de networking virtual, similar a [Gather Town](https://www.gather.town/), donde los miembros de una comunidad puedan interactuar a través de avatares, trabajar juntos en tiempo real y chatear.
 
-> 🔧 Por ahora, **Café Virtual** funciona como un _playground_ para aprender y experimentar con Supabase, implementando características en tiempo real usando ejemplos de [Supabase UI](https://supabase.com/ui).
-
 ---
 
 ## Funcionalidades Implementadas
@@ -34,3 +32,9 @@ Hasta el momento, hemos seguido varios ejemplos oficiales de Supabase, integrand
 - Chat estilo "lobby" donde todos los usuarios pueden ver y enviar mensajes en tiempo real.
 - Mensajes asociados al usuario autenticado.
 - Guardamos los mensajes en la tabla de `messages`.
+
+🎥 Míralo en Youtube -> [https://youtu.be/CIseskgH6tY?si=0mPEiJW1sESO19gs](https://youtu.be/CIseskgH6tY?si=0mPEiJW1sESO19gs)
+
+### Phaser
+
+🔗 [https://docs.phaser.io/phaser/getting-started/installation](https://docs.phaser.io/phaser/getting-started/installation)
