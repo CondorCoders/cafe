@@ -1,14 +1,9 @@
-"use client";
-
-import { RealtimeCursors } from "@/components/realtime-cursors";
+import { Game } from "@/components/game";
 
 export default function CafePage() {
   return (
     <div className="w-full min-h-screen">
-      <RealtimeCursors
-        roomName="macrodata_refinement_office"
-        username="Mark Scout"
-      />
+      <Game />
     </div>
   );
 }
