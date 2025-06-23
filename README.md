@@ -35,6 +35,26 @@ Hasta el momento, hemos seguido varios ejemplos oficiales de Supabase, integrand
 
 🎥 Míralo en Youtube -> [https://youtu.be/CIseskgH6tY?si=0mPEiJW1sESO19gs](https://youtu.be/CIseskgH6tY?si=0mPEiJW1sESO19gs)
 
-### Phaser
+## Phaser
 
+### Tutorial
+
+Empezamos instalando y haciendo el tutorial de phaser para familiarizarnos con el software.
 🔗 [https://docs.phaser.io/phaser/getting-started/installation](https://docs.phaser.io/phaser/getting-started/installation)
+🔗 [https://docs.phaser.io/phaser/getting-started/making-your-first-phaser-game](https://docs.phaser.io/phaser/getting-started/making-your-first-phaser-game)
+
+### Creación de Mapa
+
+Creamos un mapa con Tiled y recursos gratuitos para los assets.
+🔗 [Tiled - Software para dibujar mapa](https://www.mapeditor.org/)
+🔗 [Assets](https://itch.io/game-assets/tag-top-down)
+🔗 [Los Assets que usamos](https://gif-superretroworld.itch.io/interior-pack)
+
+### Añadimos colisiones
+
+Seguimos la siguiente documentación para agregar colisiones
+🔗 [Buscar "Tileset Editor"](https://medium.com/@michaelwesthadley/modular-game-worlds-in-phaser-3-tilemaps-1-958fc7e6bbd6)
+
+### Creamos y añadimos un nuevo personaje
+
+🔗 []()

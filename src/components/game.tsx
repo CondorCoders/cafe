@@ -2,12 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-type ObjectColliderType =
-  | Phaser.Types.Physics.Arcade.GameObjectWithBody
-  | Phaser.Physics.Arcade.Body
-  | Phaser.Physics.Arcade.StaticBody
-  | Phaser.Tilemaps.Tile;
-
 export const Game = () => {
   const gameContainer = useRef<Phaser.Game | null>(null);
   const player =
@@ -32,7 +26,7 @@ export const Game = () => {
 
         // Creación de las capas del mapa
         const belowLayer = map.createLayer("Below Player", tileset, 0, 0)!;
-        const carpetsLayer = map.createLayer("Carpets", tileset, 0, 0);
+        map.createLayer("Carpets", tileset, 0, 0);
         const wallLayer = map.createLayer("Wall", tileset, 0, 0)!;
         const furnitureLayer = map.createLayer("Furniture", tileset, 0, 0)!;
         const tablesLayer = map.createLayer("Tables", tileset, 0, 0)!;
@@ -55,7 +49,7 @@ export const Game = () => {
         player.current = this.physics.add.sprite(100, 450, "sofia");
         player.current.setSize(30, 60);
 
-        const aboveLayer = map.createLayer("Above Player", tileset, 0, 0);
+        map.createLayer("Above Player", tileset, 0, 0);
 
         const camera = this.cameras.main;
         camera.setZoom(1.5);
