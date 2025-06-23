@@ -57,4 +57,4 @@ Seguimos la siguiente documentación para agregar colisiones
 
 ### Creamos y añadimos un nuevo personaje
 
-🔗 []()
+🔗 [Generador de Personaje](https://liberatedpixelcup.github.io/Universal-LPC-Spritesheet-Character-Generator/#?body=Body_color_light&head=Human_male_light)
