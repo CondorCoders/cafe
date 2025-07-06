@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const protectedRoutes = ["/cafe"];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -39,21 +41,31 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // if (
-  //   !user &&
-  //   !request.nextUrl.pathname.startsWith("/login") &&
-  //   !request.nextUrl.pathname.startsWith("/auth")
-  // ) {
-  //   // no user, potentially respond by redirecting the user to the login page
-  //   const url = request.nextUrl.clone();
-  //   url.pathname = "/auth/login";
-  //   return NextResponse.redirect(url);
-  // }
+  if (!user && protectedRoutes.includes(request.nextUrl.pathname)) {
+    // no user, potentially respond by redirecting the user to the login page
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
+  }
 
-  // if (user && request.nextUrl.pathname.startsWith("/auth")) {
-  //   // user is logged in, redirect to the home page
+  // const { data: profile, error } = await supabase
+  //   .from("profiles")
+  //   .select("onboarding")
+  //   .eq("id", user?.id)
+  //   .single();
+
+  if (user && request.nextUrl.pathname.startsWith("/auth")) {
+    // user is logged in, redirect to the home page
+    const url = request.nextUrl.clone();
+    url.pathname = "/profile";
+    return NextResponse.redirect(url);
+  }
+
+  // FIXME: No permitir ingresar a otras rutas sin hacer el onboarding
+  // if (!profile?.onboarding) {
+  //   // user is logged in and has not completed onboarding, redirect to onboarding page
   //   const url = request.nextUrl.clone();
-  //   url.pathname = "/protected";
+  //   url.pathname = "/onboarding";
   //   return NextResponse.redirect(url);
   // }
 

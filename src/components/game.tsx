@@ -1,15 +1,64 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  generateRandomNumber,
+  useRealtimePlayers,
+} from "@/hooks/use-realtime-players";
+import { useEffect, useRef, useState } from "react";
 
-export const Game = () => {
+interface GameProps {
+  userId?: string;
+}
+
+export const Game = ({ userId: dbUserId }: GameProps) => {
   const gameContainer = useRef<Phaser.Game | null>(null);
-  const player =
-    useRef<Phaser.Types.Physics.Arcade.SpriteWithDynamicBody | null>(null);
+  const player = useRef<Phaser.Physics.Matter.Sprite | null>(null);
+  const scene = useRef<Phaser.Scene | null>(null);
+  const playersRefs = useRef<Record<string, Phaser.Physics.Matter.Sprite>>({});
+  const [userId] = useState(dbUserId || generateRandomNumber());
+
+  const { players, handlePlayerMove } = useRealtimePlayers({
+    roomName: "virtual-cafe",
+    userId: userId.toString(),
+    username: `User_${userId}`,
+    throttleMs: 100,
+  });
+
+  useEffect(() => {
+    if (!gameContainer.current) return;
+
+    Object.entries(players).forEach(([id, playerData]) => {
+      if (!playersRefs.current[id]) {
+        const newPlayer = scene.current?.matter.add.sprite(
+          playerData.position.x,
+          playerData.position.y,
+          "sofia"
+        );
+        newPlayer?.setBody({
+          type: "rectangle",
+          width: 32,
+          height: 48,
+        });
+        newPlayer?.setFixedRotation();
+        newPlayer?.setOrigin(0.5, 0.6);
+        playersRefs.current[id] = newPlayer!;
+      } else {
+        const existingPlayer = playersRefs.current[id];
+        existingPlayer.setPosition(
+          playerData.position.x,
+          playerData.position.y
+        );
+        if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
+          existingPlayer.anims.play(playerData.animation || "turn", true);
+        }
+      }
+    });
+  }, [players]);
 
   useEffect(() => {
     const initGame = async () => {
       const Phaser = await import("phaser");
+      // const Matter = await import("matter-js");
       function preload(this: Phaser.Scene) {
         this.load.image("tiles", "assets/atlas_48x.png");
         this.load.tilemapTiledJSON("tilemap", "assets/tilemap.json");
@@ -20,45 +69,47 @@ export const Game = () => {
       }
 
       function create(this: Phaser.Scene) {
+        scene.current = this;
         // Creación del mapa
         const map = this.make.tilemap({ key: "tilemap" });
         const tileset = map.addTilesetImage("tileset", "tiles")!;
 
         // Creación de las capas del mapa
-        const belowLayer = map.createLayer("Below Player", tileset, 0, 0)!;
+        map.createLayer("Below Player", tileset, 0, 0)!;
         map.createLayer("Carpets", tileset, 0, 0);
         const wallLayer = map.createLayer("Wall", tileset, 0, 0)!;
         const furnitureLayer = map.createLayer("Furniture", tileset, 0, 0)!;
         const tablesLayer = map.createLayer("Tables", tileset, 0, 0)!;
         const borderLayer = map.createLayer("Border", tileset, 0, 0)!;
 
-        belowLayer?.setCollisionByProperty({ collides: false });
         wallLayer?.setCollisionByProperty({ collides: true });
         furnitureLayer?.setCollisionByProperty({ collides: true });
         tablesLayer?.setCollisionByProperty({ collides: true });
         borderLayer?.setCollisionByProperty({ collides: true });
 
-        // const debugGraphics = this.add.graphics().setAlpha(0.75);
-        // tablesLayer?.renderDebug(debugGraphics, {
-        //   tileColor: null, // Color of non-colliding tiles
-        //   collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Color of colliding tiles
-        //   faceColor: new Phaser.Display.Color(40, 39, 37, 255), // Color of colliding face edges
-        // });
+        this.matter.world.convertTilemapLayer(wallLayer);
+        this.matter.world.convertTilemapLayer(furnitureLayer);
+        this.matter.world.convertTilemapLayer(tablesLayer);
+
+        // FIXME: Colisiones con el borde no funcionan correctamente
+        // this.matter.world.convertTilemapLayer(borderLayer);
 
         // Creación del jugador
-        player.current = this.physics.add.sprite(100, 450, "sofia");
-        player.current.setSize(30, 60);
+        player.current = this.matter.add.sprite(100, 450, "sofia");
+
+        player.current.setBody({
+          type: "rectangle",
+          width: 32,
+          height: 48,
+        });
+        player.current.setFixedRotation();
+        player.current.setOrigin(0.5, 0.6);
 
         map.createLayer("Above Player", tileset, 0, 0);
 
         const camera = this.cameras.main;
         camera.setZoom(1.5);
         camera.startFollow(player.current, true, 0.1, 0.1);
-
-        this.physics.add.collider(player.current, tablesLayer);
-        this.physics.add.collider(player.current, wallLayer);
-        this.physics.add.collider(player.current, borderLayer);
-        this.physics.add.collider(player.current, belowLayer);
 
         // Animaciones del jugador
         this.anims.create({
@@ -105,35 +156,52 @@ export const Game = () => {
           frameRate: 10,
           repeat: -1,
         });
-
-        // Colisiones
-        // this.physics.add.collider(player.current, platforms);
       }
 
       function update(this: Phaser.Scene) {
         const cursors = this.input.keyboard?.createCursorKeys();
 
+        const speed = 4;
+        let velocityX = 0;
+        let velocityY = 0;
+
         if (cursors?.left.isDown) {
-          player.current?.setVelocityX(-160);
+          velocityX = -speed;
           player.current?.anims.play("left", true);
         } else if (cursors?.right.isDown) {
-          player.current?.setVelocityX(160);
+          velocityX = speed;
           player.current?.anims.play("right", true);
         } else if (cursors?.down.isDown) {
-          player.current?.setVelocityY(160);
+          velocityY = speed;
           player.current?.anims.play("down", true);
         } else if (cursors?.up.isDown) {
-          player.current?.setVelocityY(-160);
+          velocityY = -speed;
           player.current?.anims.play("up", true);
         } else {
-          player.current?.setVelocityX(0);
-          player.current?.setVelocityY(0);
+          velocityX = 0;
+          velocityY = 0;
           player.current?.anims.play("turn", true);
         }
 
-        if (cursors?.up.isDown && player.current?.body.touching.down) {
-          player.current?.setVelocityY(-330);
+        player.current?.setVelocity(velocityX, velocityY);
+
+        if (
+          player.current?.x === players[userId]?.position.x &&
+          player.current?.y === players[userId]?.position.y
+        ) {
+          return;
         }
+        handlePlayerMove({
+          position: {
+            x: player.current?.x || 0,
+            y: player.current?.y || 0,
+          },
+          user: {
+            id: userId.toString(),
+            name: `User_${userId}`,
+          },
+          animation: player.current?.anims.currentAnim?.key,
+        });
       }
 
       const config: Phaser.Types.Core.GameConfig = {
@@ -141,8 +209,8 @@ export const Game = () => {
         width: 800,
         height: 600,
         physics: {
-          default: "arcade",
-          arcade: {
+          default: "matter",
+          matter: {
             gravity: { y: 0, x: 0 },
             debug: true,
           },

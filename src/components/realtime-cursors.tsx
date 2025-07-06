@@ -1,12 +1,22 @@
-'use client'
+"use client";
 
-import { Cursor } from '@/components/cursor'
-import { useRealtimeCursors } from '@/hooks/use-realtime-cursors'
+import { Cursor } from "@/components/cursor";
+import { useRealtimeCursors } from "@/hooks/use-realtime-players";
 
-const THROTTLE_MS = 50
+const THROTTLE_MS = 50;
 
-export const RealtimeCursors = ({ roomName, username }: { roomName: string; username: string }) => {
-  const { cursors } = useRealtimeCursors({ roomName, username, throttleMs: THROTTLE_MS })
+export const RealtimeCursors = ({
+  roomName,
+  username,
+}: {
+  roomName: string;
+  username: string;
+}) => {
+  const { cursors } = useRealtimeCursors({
+    roomName,
+    username,
+    throttleMs: THROTTLE_MS,
+  });
 
   return (
     <div>
@@ -15,7 +25,7 @@ export const RealtimeCursors = ({ roomName, username }: { roomName: string; user
           key={id}
           className="fixed transition-transform ease-in-out z-50"
           style={{
-            transitionDuration: '20ms',
+            transitionDuration: "20ms",
             top: 0,
             left: 0,
             transform: `translate(${cursors[id].position.x}px, ${cursors[id].position.y}px)`,
@@ -25,5 +35,5 @@ export const RealtimeCursors = ({ roomName, username }: { roomName: string; user
         />
       ))}
     </div>
-  )
-}
+  );
+};

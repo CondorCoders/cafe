@@ -43,54 +43,63 @@ const supabase = createClient();
 const generateRandomColor = () =>
   `hsl(${Math.floor(Math.random() * 360)}, 100%, 70%)`;
 
-const generateRandomNumber = () => Math.floor(Math.random() * 100);
+export const generateRandomNumber = () => Math.floor(Math.random() * 100);
 
-const EVENT_NAME = "realtime-cursor-move";
+const EVENT_NAME = "realtime-player-move";
 
-type CursorEventPayload = {
+interface Player {
   position: {
     x: number;
     y: number;
   };
   user: {
-    id: number;
+    id: string;
     name: string;
   };
-  color: string;
-  timestamp: number;
-};
+  animation?: string;
+  color?: string;
+}
 
-export const useRealtimeCursors = ({
+interface PlayerEventPayload extends Player {
+  timestamp: number;
+}
+
+export const useRealtimePlayers = ({
   roomName,
   username,
+  userId,
   throttleMs,
 }: {
   roomName: string;
+  userId: string;
   username: string;
   throttleMs: number;
 }) => {
   const [color] = useState(generateRandomColor());
-  const [userId] = useState(generateRandomNumber());
-  const [cursors, setCursors] = useState<Record<string, CursorEventPayload>>(
+  const [players, setPlayers] = useState<Record<string, PlayerEventPayload>>(
     {}
   );
 
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const removedPlayers = useRef<Record<string, PlayerEventPayload>>({});
 
   const callback = useCallback(
-    (event: MouseEvent) => {
-      const { clientX, clientY } = event;
+    (event: Player) => {
+      const { position, user, color: userColor, animation } = event;
 
-      const payload: CursorEventPayload = {
+      console.log({ event });
+
+      const payload: PlayerEventPayload = {
         position: {
-          x: clientX,
-          y: clientY,
+          x: position.x,
+          y: position.y,
         },
         user: {
-          id: userId,
-          name: username,
+          id: user.id || userId,
+          name: user.name || username,
         },
-        color: color,
+        color: userColor || color,
+        animation: animation,
         timestamp: new Date().getTime(),
       };
 
@@ -100,10 +109,10 @@ export const useRealtimeCursors = ({
         payload: payload,
       });
     },
-    [color, userId, username]
+    [userId, username, color]
   );
 
-  const handleMouseMove = useThrottleCallback(callback, throttleMs);
+  const handlePlayerMove = useThrottleCallback(callback, throttleMs);
 
   useEffect(() => {
     const channel = supabase.channel(roomName); // macrodata_refinement_office
@@ -113,14 +122,18 @@ export const useRealtimeCursors = ({
       .on(
         "broadcast",
         { event: EVENT_NAME },
-        (data: { payload: CursorEventPayload }) => {
+        (data: { payload: PlayerEventPayload }) => {
           const { user } = data.payload;
           // Don't render your own cursor
           if (user.id === userId) return;
 
-          setCursors((prev) => {
+          setPlayers((prev) => {
             if (prev[userId]) {
               delete prev[userId];
+            }
+
+            if (removedPlayers.current[user.id]) {
+              delete removedPlayers.current[user.id];
             }
 
             return {
@@ -133,19 +146,18 @@ export const useRealtimeCursors = ({
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      channel.unsubscribe().then((receivedMsg) => {
+        if (receivedMsg === "ok") {
+          removedPlayers.current = {
+            ...removedPlayers.current,
+            ...Object.fromEntries(
+              Object.entries(players).filter(([id]) => id !== userId)
+            ),
+          };
+        }
+      });
     };
   }, []);
 
-  useEffect(() => {
-    // Add event listener for mousemove
-    window.addEventListener("mousemove", handleMouseMove);
-
-    // Cleanup on unmount
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-    };
-  }, [handleMouseMove]);
-
-  return { cursors };
+  return { players, handlePlayerMove };
 };
