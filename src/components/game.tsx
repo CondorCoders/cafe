@@ -86,20 +86,19 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
 
         // Creación de las capas del mapa
         map.createLayer("Below Player", tilesets, 0, 0);
-        map.createLayer("Carpets", tilesets, 0, 0);
-
-        const floorLayer = map.createLayer("floor", tilesets, 0, 0)!;
-        const carpetsLayer = map.createLayer("carpets", tilesets, 0, 0)!;
+        map.createLayer("floor", tilesets, 0, 0);
+        map.createLayer("carpets", tilesets, 0, 0);
         const chairsLayer = map.createLayer("chairs", tilesets, 0, 0)!;
         const wallsLayer = map.createLayer("walls", tilesets, 0, 0)!;
         const lowerFlowersLayer = map.createLayer("lowerFlowers", tilesets, 0, 0)!;
         const furnitureLayer = map.createLayer("furniture", tilesets, 0, 0)!;
         const tablesLayer = map.createLayer("tables", tilesets, 0, 0)!;
         const upperFlowersLayer = map.createLayer("upperFlowers", tilesets, 0, 0)!;
-        const ornamentsLayer = map.createLayer("ornaments", tilesets, 0, 0)!;
+        map.createLayer("ornaments", tilesets, 0, 0);
         const doorsLayer = map.createLayer("doors", tilesets, 0, 0)!;
         const othersLayer = map.createLayer("others", tilesets, 0, 0)!;
         const upperPcLayer = map.createLayer("upperPc", tilesets, 0, 0)!;
+        const abovePlayerLayer = map.createLayer("Above Player", tilesets, 0, 0);
 
         chairsLayer?.setCollisionByProperty({ collider: true });
         wallsLayer?.setCollisionByProperty({ collider: true });
@@ -115,9 +114,6 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         this.matter.world.convertTilemapLayer(tablesLayer);
         this.matter.world.convertTilemapLayer(othersLayer);
 
-        // FIXME: Colisiones con el borde no funcionan correctamente
-        // this.matter.world.convertTilemapLayer(borderLayer);
-
         // Creación del jugador
         player.current = this.matter.add.sprite(960, 994, "sofia");
 
@@ -128,9 +124,6 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         });
         player.current.setFixedRotation();
         player.current.setOrigin(0.5, 0.6);
-
-        // Corrige la capa "Above Player" para usar el array de tilesets
-        const abovePlayerLayer = map.createLayer("Above Player", tilesets, 0, 0);
 
         // Establecer una profundidad alta para las capas que deben estar siempre por encima
         const topLayersDepth = 10000;
