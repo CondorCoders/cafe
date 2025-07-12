@@ -34,6 +34,7 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
           playerData.position.y,
           "sofia"
         );
+        newPlayer?.setDepth(playerData.position.y);
         newPlayer?.setBody({
           type: "rectangle",
           width: 32,
@@ -48,6 +49,7 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
           playerData.position.x,
           playerData.position.y
         );
+        existingPlayer.setDepth(playerData.position.y);
         if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
           existingPlayer.anims.play(playerData.animation || "turn", true);
         }
@@ -60,7 +62,9 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
       const Phaser = await import("phaser");
       // const Matter = await import("matter-js");
       function preload(this: Phaser.Scene) {
-        this.load.image("tiles", "assets/atlas_48x.png");
+        this.load.image("atlas_48x", "assets/atlas_48x.png");
+        this.load.image("interiors", "assets/Interiors_free_48x48.png");
+        this.load.image("room_builder", "assets/Room_Builder_free_48x48.png");
         this.load.tilemapTiledJSON("tilemap", "assets/tilemap.json");
         this.load.spritesheet("sofia", "assets/characters/sofia.png", {
           frameWidth: 64,
@@ -72,40 +76,61 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         scene.current = this;
         // Creación del mapa
         const map = this.make.tilemap({ key: "tilemap" });
-        const tileset = map.addTilesetImage("tileset", "tiles")!;
+        // Cargar los tilesets según el nombre en el JSON
+        const tilesetAtlas = map.addTilesetImage("tileset_1", "atlas_48x");
+        const tilesetInteriors = map.addTilesetImage("tileset_2", "interiors");
+        const tilesetRoomBuilder = map.addTilesetImage("tileset_3", "room_builder");
+        // Puedes agregar más tilesets si tu tilemap.json los tiene
+        // Agrupa todos los tilesets en un array y filtra los null
+        const tilesets = [tilesetAtlas, tilesetInteriors, tilesetRoomBuilder].filter(Boolean) as Phaser.Tilemaps.Tileset[];
 
         // Creación de las capas del mapa
-        map.createLayer("Below Player", tileset, 0, 0)!;
-        map.createLayer("Carpets", tileset, 0, 0);
-        const wallLayer = map.createLayer("Wall", tileset, 0, 0)!;
-        const furnitureLayer = map.createLayer("Furniture", tileset, 0, 0)!;
-        const tablesLayer = map.createLayer("Tables", tileset, 0, 0)!;
-        const borderLayer = map.createLayer("Border", tileset, 0, 0)!;
+        map.createLayer("Below Player", tilesets, 0, 0);
+        map.createLayer("floor", tilesets, 0, 0);
+        map.createLayer("carpets", tilesets, 0, 0);
+        const chairsLayer = map.createLayer("chairs", tilesets, 0, 0)!;
+        const wallsLayer = map.createLayer("walls", tilesets, 0, 0)!;
+        const lowerFlowersLayer = map.createLayer("lowerFlowers", tilesets, 0, 0)!;
+        const furnitureLayer = map.createLayer("furniture", tilesets, 0, 0)!;
+        const tablesLayer = map.createLayer("tables", tilesets, 0, 0)!;
+        const upperFlowersLayer = map.createLayer("upperFlowers", tilesets, 0, 0)!;
+        map.createLayer("ornaments", tilesets, 0, 0);
+        const doorsLayer = map.createLayer("doors", tilesets, 0, 0)!;
+        const othersLayer = map.createLayer("others", tilesets, 0, 0)!;
+        const upperPcLayer = map.createLayer("upperPc", tilesets, 0, 0)!;
+        const abovePlayerLayer = map.createLayer("Above Player", tilesets, 0, 0);
 
-        wallLayer?.setCollisionByProperty({ collides: true });
-        furnitureLayer?.setCollisionByProperty({ collides: true });
-        tablesLayer?.setCollisionByProperty({ collides: true });
-        borderLayer?.setCollisionByProperty({ collides: true });
+        chairsLayer?.setCollisionByProperty({ collider: true });
+        wallsLayer?.setCollisionByProperty({ collider: true });
+        lowerFlowersLayer?.setCollisionByProperty({ collider: true });
+        furnitureLayer?.setCollisionByProperty({ collider: true });
+        tablesLayer?.setCollisionByProperty({ collider: true });
+        othersLayer?.setCollisionByProperty({ collider: true });
 
-        this.matter.world.convertTilemapLayer(wallLayer);
+        this.matter.world.convertTilemapLayer(chairsLayer);
+        this.matter.world.convertTilemapLayer(wallsLayer);
+        this.matter.world.convertTilemapLayer(lowerFlowersLayer);
         this.matter.world.convertTilemapLayer(furnitureLayer);
         this.matter.world.convertTilemapLayer(tablesLayer);
-
-        // FIXME: Colisiones con el borde no funcionan correctamente
-        // this.matter.world.convertTilemapLayer(borderLayer);
+        this.matter.world.convertTilemapLayer(othersLayer);
 
         // Creación del jugador
-        player.current = this.matter.add.sprite(100, 450, "sofia");
+        player.current = this.matter.add.sprite(960, 994, "sofia");
 
         player.current.setBody({
           type: "rectangle",
-          width: 32,
-          height: 48,
+          width: 28, // 32
+          height: 45, // 48
         });
         player.current.setFixedRotation();
         player.current.setOrigin(0.5, 0.6);
 
-        map.createLayer("Above Player", tileset, 0, 0);
+        // Establecer una profundidad alta para las capas que deben estar siempre por encima
+        const topLayersDepth = 10000;
+        upperFlowersLayer.setDepth(topLayersDepth);
+        upperPcLayer.setDepth(topLayersDepth);
+        abovePlayerLayer?.setDepth(topLayersDepth);
+        doorsLayer.setDepth(topLayersDepth);
 
         const camera = this.cameras.main;
         camera.setZoom(1.5);
@@ -161,7 +186,7 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
       function update(this: Phaser.Scene) {
         const cursors = this.input.keyboard?.createCursorKeys();
 
-        const speed = 4;
+        const speed = 3;
         let velocityX = 0;
         let velocityY = 0;
 
@@ -184,6 +209,10 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         }
 
         player.current?.setVelocity(velocityX, velocityY);
+
+        if (player.current) {
+          player.current.setDepth(player.current.y);
+        }
 
         if (
           player.current?.x === players[userId]?.position.x &&
