@@ -6,21 +6,28 @@ import {
 } from "@/hooks/use-realtime-players";
 import { useEffect, useRef, useState } from "react";
 
-interface GameProps {
-  userId?: string;
+interface UserProfile {
+  id: string;
+  username: string;
 }
 
-export const Game = ({ userId: dbUserId }: GameProps) => {
+interface GameProps {
+  user?: UserProfile;
+}
+
+export const Game = ({ user }: GameProps) => {
   const gameContainer = useRef<Phaser.Game | null>(null);
   const player = useRef<Phaser.Physics.Matter.Sprite | null>(null);
+  const playerUsername = useRef<Phaser.GameObjects.Text | null>(null);
   const scene = useRef<Phaser.Scene | null>(null);
   const playersRefs = useRef<Record<string, Phaser.Physics.Matter.Sprite>>({});
-  const [userId] = useState(dbUserId || generateRandomNumber());
+  const playersUsernames = useRef<Record<string, Phaser.GameObjects.Text>>({});
+  const [userId] = useState(user?.id || generateRandomNumber());
 
   const { players, handlePlayerMove } = useRealtimePlayers({
     roomName: "virtual-cafe",
     userId: userId.toString(),
-    username: `User_${userId}`,
+    username: user?.username || "Guest",
     throttleMs: 100,
   });
 
@@ -42,12 +49,32 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         });
         newPlayer?.setFixedRotation();
         newPlayer?.setOrigin(0.5, 0.6);
+
+        const label = scene.current?.add.text(
+          newPlayer?.x || playerData.position.x,
+          (newPlayer?.y || playerData.position.y) - 40,
+          playerData?.user.name || "Guest",
+          {
+            fontSize: "12px",
+            color: "#ffffff",
+            backgroundColor: "#000000",
+            padding: { x: 5, y: 2 },
+          }
+        );
+        label?.setOrigin(0.5, 0.5);
+        playersUsernames.current[id] = label!;
         playersRefs.current[id] = newPlayer!;
       } else {
         const existingPlayer = playersRefs.current[id];
+        const existingUsername = playersUsernames.current[id];
+
         existingPlayer.setPosition(
           playerData.position.x,
           playerData.position.y
+        );
+        existingUsername.setPosition(
+          playerData.position.x,
+          playerData.position.y - 40
         );
         existingPlayer.setDepth(playerData.position.y);
         if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
@@ -79,10 +106,17 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         // Cargar los tilesets según el nombre en el JSON
         const tilesetAtlas = map.addTilesetImage("tileset_1", "atlas_48x");
         const tilesetInteriors = map.addTilesetImage("tileset_2", "interiors");
-        const tilesetRoomBuilder = map.addTilesetImage("tileset_3", "room_builder");
+        const tilesetRoomBuilder = map.addTilesetImage(
+          "tileset_3",
+          "room_builder"
+        );
         // Puedes agregar más tilesets si tu tilemap.json los tiene
         // Agrupa todos los tilesets en un array y filtra los null
-        const tilesets = [tilesetAtlas, tilesetInteriors, tilesetRoomBuilder].filter(Boolean) as Phaser.Tilemaps.Tileset[];
+        const tilesets = [
+          tilesetAtlas,
+          tilesetInteriors,
+          tilesetRoomBuilder,
+        ].filter(Boolean) as Phaser.Tilemaps.Tileset[];
 
         // Creación de las capas del mapa
         map.createLayer("Below Player", tilesets, 0, 0);
@@ -90,15 +124,30 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         map.createLayer("carpets", tilesets, 0, 0);
         const chairsLayer = map.createLayer("chairs", tilesets, 0, 0)!;
         const wallsLayer = map.createLayer("walls", tilesets, 0, 0)!;
-        const lowerFlowersLayer = map.createLayer("lowerFlowers", tilesets, 0, 0)!;
+        const lowerFlowersLayer = map.createLayer(
+          "lowerFlowers",
+          tilesets,
+          0,
+          0
+        )!;
         const furnitureLayer = map.createLayer("furniture", tilesets, 0, 0)!;
         const tablesLayer = map.createLayer("tables", tilesets, 0, 0)!;
-        const upperFlowersLayer = map.createLayer("upperFlowers", tilesets, 0, 0)!;
+        const upperFlowersLayer = map.createLayer(
+          "upperFlowers",
+          tilesets,
+          0,
+          0
+        )!;
         map.createLayer("ornaments", tilesets, 0, 0);
         const doorsLayer = map.createLayer("doors", tilesets, 0, 0)!;
         const othersLayer = map.createLayer("others", tilesets, 0, 0)!;
         const upperPcLayer = map.createLayer("upperPc", tilesets, 0, 0)!;
-        const abovePlayerLayer = map.createLayer("Above Player", tilesets, 0, 0);
+        const abovePlayerLayer = map.createLayer(
+          "Above Player",
+          tilesets,
+          0,
+          0
+        );
 
         chairsLayer?.setCollisionByProperty({ collider: true });
         wallsLayer?.setCollisionByProperty({ collider: true });
@@ -125,6 +174,19 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         player.current.setFixedRotation();
         player.current.setOrigin(0.5, 0.6);
 
+        playerUsername.current = this.add.text(
+          player.current.x,
+          player.current.y - 40,
+          user?.username || "Guest",
+          {
+            fontSize: "12px",
+            color: "#ffffff",
+            backgroundColor: "#000000",
+            padding: { x: 5, y: 2 },
+          }
+        );
+        playerUsername.current.setOrigin(0.5, 0.5);
+
         // Establecer una profundidad alta para las capas que deben estar siempre por encima
         const topLayersDepth = 10000;
         upperFlowersLayer.setDepth(topLayersDepth);
@@ -135,6 +197,7 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         const camera = this.cameras.main;
         camera.setZoom(1.5);
         camera.startFollow(player.current, true, 0.1, 0.1);
+        camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
         // Animaciones del jugador
         this.anims.create({
@@ -209,6 +272,10 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
         }
 
         player.current?.setVelocity(velocityX, velocityY);
+        playerUsername.current?.setPosition(
+          player.current?.x || 0,
+          (player.current?.y || 0) - 40
+        );
 
         if (player.current) {
           player.current.setDepth(player.current.y);
@@ -227,7 +294,7 @@ export const Game = ({ userId: dbUserId }: GameProps) => {
           },
           user: {
             id: userId.toString(),
-            name: `User_${userId}`,
+            name: user?.username || "Guest",
           },
           animation: player.current?.anims.currentAnim?.key,
         });

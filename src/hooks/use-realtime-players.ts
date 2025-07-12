@@ -87,8 +87,6 @@ export const useRealtimePlayers = ({
     (event: Player) => {
       const { position, user, color: userColor, animation } = event;
 
-      console.log({ event });
-
       const payload: PlayerEventPayload = {
         position: {
           x: position.x,

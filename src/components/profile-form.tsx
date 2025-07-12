@@ -88,7 +88,7 @@ export const ProfileForm = ({ profile }: ProfileFormProps) => {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Username</FormLabel>
+                <FormLabel>Nombre de Usuario</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
