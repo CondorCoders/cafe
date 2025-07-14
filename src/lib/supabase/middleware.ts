@@ -48,11 +48,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // const { data: profile, error } = await supabase
-  //   .from("profiles")
-  //   .select("onboarding")
-  //   .eq("id", user?.id)
-  //   .single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("onboarding")
+    .eq("id", user?.id)
+    .single();
+
+  if (
+    user &&
+    profile?.onboarding === false &&
+    request.nextUrl.pathname !== "/onboarding"
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/onboarding";
+    return NextResponse.redirect(url);
+  }
 
   if (user && request.nextUrl.pathname.startsWith("/auth")) {
     // user is logged in, redirect to the home page

@@ -62,8 +62,6 @@ export const ProfileForm = ({ profile }: ProfileFormProps) => {
   });
 
   const onSubmit = async (data: z.infer<typeof profileFormSchema>) => {
-    console.log("Form submitted with data:", data);
-
     const supabase = createClient();
 
     const { error } = await supabase
@@ -76,7 +74,7 @@ export const ProfileForm = ({ profile }: ProfileFormProps) => {
       return;
     }
 
-    router.push("/profile");
+    router.push("/cafe");
   };
 
   return (
