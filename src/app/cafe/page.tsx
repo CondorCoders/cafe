@@ -1,4 +1,6 @@
+import { AppSidebar } from "@/components/app-sidebar";
 import { Game } from "@/components/game";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -21,11 +23,18 @@ export default async function CafePage() {
   }
 
   return (
-    <Game
-      user={{
-        id: userId || "",
-        username: profile?.username || "Guest",
-      }}
-    />
+    <div className="relative w-full h-full">
+      <SidebarProvider>
+        <AppSidebar user={profile} />
+        <main className="w-full h-full">
+          <Game
+            user={{
+              id: userId || "",
+              username: profile?.username || "Guest",
+            }}
+          />
+        </main>
+      </SidebarProvider>
+    </div>
   );
 }
