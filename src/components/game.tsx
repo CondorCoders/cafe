@@ -85,17 +85,8 @@ export const Game = ({ user }: GameProps) => {
         playersRefs.current[id] = newPlayer!;
       } else {
         const existingPlayer = playersRefs.current[id];
-        const existingUsername = playersUsernames.current[id];
+        playersUsernames.current[id];
 
-        existingPlayer.setPosition(
-          playerData.position.x,
-          playerData.position.y
-        );
-        existingUsername.setPosition(
-          playerData.position.x,
-          playerData.position.y - 40
-        );
-        existingPlayer.setDepth(playerData.position.y);
         if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
           existingPlayer.anims.play(playerData.animation || "turn", true);
         }
