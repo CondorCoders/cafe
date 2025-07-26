@@ -3,10 +3,11 @@ import { RealtimeChannel } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Throttle a callback to a certain delay, It will only call the callback if the delay has passed, with the arguments
- * from the last call
+ * Hook personalizado para manejar jugadores en tiempo real usando Supabase
+ * Combina broadcast (para movimientos) y presence (para conexiones/desconexiones)
  */
-// debounce
+// Función throttle: limita la frecuencia de llamadas a una función
+// Solo ejecuta el callback si ha pasado el tiempo de delay especificado
 const useThrottleCallback = <Params extends unknown[], Return>(
   callback: (...args: Params) => Return,
   delay: number
@@ -40,13 +41,16 @@ const useThrottleCallback = <Params extends unknown[], Return>(
 
 const supabase = createClient();
 
+// Genera un color aleatorio en formato HSL para cada usuario
 const generateRandomColor = () =>
   `hsl(${Math.floor(Math.random() * 360)}, 100%, 70%)`;
 
 export const generateRandomNumber = () => Math.floor(Math.random() * 100);
 
+// Nombre del evento para los movimientos de jugadores
 const EVENT_NAME = "realtime-player-move";
 
+// Interfaz para definir la estructura básica de un jugador
 interface Player {
   position: {
     x: number;
@@ -60,8 +64,17 @@ interface Player {
   color?: string;
 }
 
+// Extiende Player agregando timestamp para eventos de movimiento
 interface PlayerEventPayload extends Player {
   timestamp: number;
+}
+
+// Estructura de datos para el estado de presencia (usuarios conectados)
+interface PresenceState {
+  user_id: string;
+  username: string;
+  color: string;
+  online_at: string;
 }
 
 export const useRealtimePlayers = ({
@@ -75,18 +88,28 @@ export const useRealtimePlayers = ({
   username: string;
   throttleMs: number;
 }) => {
+  // Color único para este usuario (se genera una sola vez)
   const [color] = useState(generateRandomColor());
+
+  // Estado para almacenar las posiciones/movimientos de todos los jugadores
   const [players, setPlayers] = useState<Record<string, PlayerEventPayload>>(
     {}
   );
 
-  const channelRef = useRef<RealtimeChannel | null>(null);
-  const removedPlayers = useRef<Record<string, PlayerEventPayload>>({});
+  // Estado para almacenar los usuarios conectados (presence)
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, PresenceState>>(
+    {}
+  );
 
+  // Referencia al canal de Supabase para poder enviár mensajes
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Función que prepara y envía los datos del movimiento del jugador
   const callback = useCallback(
     (event: Player) => {
       const { position, user, color: userColor, animation } = event;
 
+      // Construye el payload con toda la información del jugador
       const payload: PlayerEventPayload = {
         position: {
           x: position.x,
@@ -98,9 +121,10 @@ export const useRealtimePlayers = ({
         },
         color: userColor || color,
         animation: animation,
-        timestamp: new Date().getTime(),
+        timestamp: new Date().getTime(), // Marca de tiempo para sincronización
       };
 
+      // Envía el movimiento a través del canal usando broadcast
       channelRef.current?.send({
         type: "broadcast",
         event: EVENT_NAME,
@@ -110,30 +134,31 @@ export const useRealtimePlayers = ({
     [userId, username, color]
   );
 
+  // Función throttled para manejar movimientos sin saturar la red
   const handlePlayerMove = useThrottleCallback(callback, throttleMs);
 
   useEffect(() => {
-    const channel = supabase.channel(roomName); // macrodata_refinement_office
+    // Crea un canal único para esta sala/habitación
+    const channel = supabase.channel(roomName); // ej: "macrodata_refinement_office"
     channelRef.current = channel;
 
     channel
+      // LISTENER 1: Escucha movimientos de otros jugadores via broadcast
       .on(
         "broadcast",
         { event: EVENT_NAME },
         (data: { payload: PlayerEventPayload }) => {
           const { user } = data.payload;
-          // Don't render your own cursor
+          // No renderizar tu propio jugador
           if (user.id === userId) return;
 
           setPlayers((prev) => {
+            // Elimina tu propio jugador del estado (por si acaso)
             if (prev[userId]) {
               delete prev[userId];
             }
 
-            if (removedPlayers.current[user.id]) {
-              delete removedPlayers.current[user.id];
-            }
-
+            // Agrega o actualiza la posición del otro jugador
             return {
               ...prev,
               [user.id]: data.payload,
@@ -141,21 +166,106 @@ export const useRealtimePlayers = ({
           });
         }
       )
-      .subscribe();
+      // LISTENER 2: Sincronización inicial de presence (usuarios conectados)
+      .on("presence", { event: "sync" }, () => {
+        // Obtiene el estado completo de todos los usuarios conectados
+        const presenceState = channel.presenceState();
+        console.log("Sincronización de presencia:", presenceState);
 
-    return () => {
-      channel.unsubscribe().then((receivedMsg) => {
-        if (receivedMsg === "ok") {
-          removedPlayers.current = {
-            ...removedPlayers.current,
-            ...Object.fromEntries(
-              Object.entries(players).filter(([id]) => id !== userId)
-            ),
-          };
+        // Convierte el estado de presence al formato que usamos
+        const formattedUsers: Record<string, PresenceState> = {};
+        Object.entries(presenceState).forEach(([key, presences]) => {
+          if (presences.length > 0) {
+            const presence = presences[0] as unknown as PresenceState;
+            formattedUsers[key] = presence;
+          }
+        });
+
+        setOnlineUsers(formattedUsers);
+      })
+      // LISTENER 3: Cuando un nuevo usuario se conecta
+      .on("presence", { event: "join" }, ({ key, newPresences }) => {
+        console.log("Usuario se conectó:", key, newPresences);
+
+        if (newPresences.length > 0) {
+          const presence = newPresences[0] as unknown as PresenceState;
+
+          // No agregar tu propio usuario
+          if (presence.user_id === userId) return;
+
+          // Agregar a la lista de usuarios conectados
+          setOnlineUsers((prev) => ({
+            ...prev,
+            [key]: presence,
+          }));
+
+          // También agregar al estado de players con una posición inicial
+          setPlayers((prev) => ({
+            ...prev,
+            [presence.user_id]: {
+              position: {
+                x: 960, // Posición inicial por defecto
+                y: 994,
+              },
+              user: {
+                id: presence.user_id,
+                name: presence.username,
+              },
+              color: presence.color,
+              animation: "turn",
+              timestamp: new Date().getTime(),
+            },
+          }));
+        }
+      })
+      // LISTENER 4: Cuando un usuario se desconecta
+      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+        console.log("Usuario se desconectó:", key, leftPresences);
+
+        if (leftPresences.length > 0) {
+          const leftPresence = leftPresences[0] as unknown as PresenceState;
+
+          // No procesar tu propia desconexión (aunque no debería pasar)
+          if (leftPresence.user_id === userId) return;
+
+          // Elimina el usuario de la lista de conectados
+          setOnlineUsers((prev) => {
+            const updated = { ...prev };
+            delete updated[key];
+            return updated;
+          });
+
+          // También elimina al jugador del mapa cuando se desconecta
+          setPlayers((prev) => {
+            const updated = { ...prev };
+            delete updated[leftPresence.user_id];
+            return updated;
+          });
+        }
+      })
+      // Se suscribe al canal y cuando esté listo, trackea la presencia
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          // Registra la presencia del usuario actual en el canal
+          await channel.track({
+            user_id: userId,
+            username: username,
+            color: color,
+            online_at: new Date().toISOString(),
+          });
         }
       });
-    };
-  }, []);
 
-  return { players, handlePlayerMove };
+    return () => {
+      // Limpieza: desuscribirse del canal
+      // Supabase automáticamente hace untrack() de la presencia
+      channel.unsubscribe();
+    };
+  }, [roomName, userId, username, color]);
+
+  return {
+    players, // Posiciones actuales de todos los jugadores
+    onlineUsers, // Lista de usuarios conectados con su info de presencia
+    handlePlayerMove, // Función para enviar movimientos (con throttle)
+  };
 };

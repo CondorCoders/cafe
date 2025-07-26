@@ -31,9 +31,18 @@ export const Game = ({ user }: GameProps) => {
     throttleMs: 100,
   });
 
+  // Referencia para acceder a players en Phaser sin recrear el juego
+  const playersData = useRef(players);
+
+  // Actualizar la referencia cuando cambien los players
+  useEffect(() => {
+    playersData.current = players;
+  }, [players]);
+
   useEffect(() => {
     if (!gameContainer.current) return;
 
+    // 1. Crear/actualizar jugadores existentes
     Object.entries(players).forEach(([id, playerData]) => {
       if (!playersRefs.current[id]) {
         const newPlayer = scene.current?.matter.add.sprite(
@@ -80,6 +89,32 @@ export const Game = ({ user }: GameProps) => {
         if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
           existingPlayer.anims.play(playerData.animation || "turn", true);
         }
+      }
+    });
+
+    // 2. Limpiar jugadores desconectados de la escena
+    const currentPlayerIds = Object.keys(players);
+    const scenePlayerIds = Object.keys(playersRefs.current);
+
+    // Encontrar jugadores que están en la escena pero ya no en players
+    const playersToRemove = scenePlayerIds.filter(
+      (id) => !currentPlayerIds.includes(id)
+    );
+
+    // Remover jugadores desconectados de la escena
+    playersToRemove.forEach((playerId) => {
+      console.log("Removiendo jugador de la escena:", playerId);
+
+      // Destruir el sprite del jugador
+      if (playersRefs.current[playerId]) {
+        playersRefs.current[playerId].destroy();
+        delete playersRefs.current[playerId];
+      }
+
+      // Destruir el texto del nombre
+      if (playersUsernames.current[playerId]) {
+        playersUsernames.current[playerId].destroy();
+        delete playersUsernames.current[playerId];
       }
     });
   }, [players]);
@@ -282,8 +317,8 @@ export const Game = ({ user }: GameProps) => {
         }
 
         if (
-          player.current?.x === players[userId]?.position.x &&
-          player.current?.y === players[userId]?.position.y
+          player.current?.x === playersData.current[userId]?.position.x &&
+          player.current?.y === playersData.current[userId]?.position.y
         ) {
           return;
         }
