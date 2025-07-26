@@ -1,3 +1,4 @@
+import { useOnlineUsers } from "@/context/online-users-context";
 import { createClient } from "@/lib/supabase/client";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -70,7 +71,7 @@ interface PlayerEventPayload extends Player {
 }
 
 // Estructura de datos para el estado de presencia (usuarios conectados)
-interface PresenceState {
+export interface PresenceState {
   user_id: string;
   username: string;
   color: string;
@@ -97,9 +98,11 @@ export const useRealtimePlayers = ({
   );
 
   // Estado para almacenar los usuarios conectados (presence)
-  const [onlineUsers, setOnlineUsers] = useState<Record<string, PresenceState>>(
-    {}
-  );
+  // const [onlineUsers, setOnlineUsers] = useState<Record<string, PresenceState>>(
+  //   {}
+  // );
+
+  const { onlineUsers, setOnlineUsers } = useOnlineUsers();
 
   // Referencia al canal de Supabase para poder enviár mensajes
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -174,10 +177,10 @@ export const useRealtimePlayers = ({
 
         // Convierte el estado de presence al formato que usamos
         const formattedUsers: Record<string, PresenceState> = {};
-        Object.entries(presenceState).forEach(([key, presences]) => {
+        Object.values(presenceState).forEach((presences) => {
           if (presences.length > 0) {
             const presence = presences[0] as unknown as PresenceState;
-            formattedUsers[key] = presence;
+            formattedUsers[presence.user_id] = presence;
           }
         });
 
@@ -196,7 +199,7 @@ export const useRealtimePlayers = ({
           // Agregar a la lista de usuarios conectados
           setOnlineUsers((prev) => ({
             ...prev,
-            [key]: presence,
+            [newPresences[0].user_id]: presence,
           }));
 
           // También agregar al estado de players con una posición inicial
@@ -231,7 +234,7 @@ export const useRealtimePlayers = ({
           // Elimina el usuario de la lista de conectados
           setOnlineUsers((prev) => {
             const updated = { ...prev };
-            delete updated[key];
+            delete updated[leftPresence.user_id];
             return updated;
           });
 

@@ -1,10 +1,10 @@
+"use client";
 import { ChevronUp, MessageCircle, Music, UsersRound } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -17,46 +17,58 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { useState } from "react";
+import { Button } from "./ui/button";
+import { OnlineUsers } from "./sidebar-features/online-users";
 
 const menuItems = [
-  { label: "Online", icon: UsersRound },
-  { label: "Chat", icon: MessageCircle },
-  { label: "Música", icon: Music },
+  { id: "online", label: "Online", icon: UsersRound },
+  { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "music", label: "Música", icon: Music },
 ];
 
+export interface User {
+  id: string;
+  full_name: string;
+  username: string;
+  profile_url: string;
+}
+
 interface AppSidebarProps {
-  user: {
-    id: string;
-    full_name: string;
-    profile_url: string;
-  };
+  user: User;
 }
 
 export const AppSidebar = ({ user }: AppSidebarProps) => {
+  const [activeMenuItem, setActiveMenuItem] = useState<string | undefined>();
+
   return (
     <Sidebar variant="floating" className="md:absolute" collapsible="icon">
       <SidebarTrigger className="group-data-[collapsible=icon]:mx-auto mt-2" />
-      <SidebarHeader>
-        <h1 className="text-lg font-bold group-data-[collapsible=icon]:hidden">
-          Menú
-        </h1>
-      </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <ul className="no-list-style w-full flex flex-col gap-4">
-            {menuItems.map((item) => (
-              <li
-                key={item.label}
-                className="w-full flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
-              >
-                <item.icon className="size-4" />
-                <span className="group-data-[collapsible=icon]:hidden">
-                  {item.label}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </SidebarGroup>
+        {!activeMenuItem && (
+          <SidebarGroup>
+            <ul className="no-list-style w-full flex flex-col gap-2">
+              {menuItems.map((item) => (
+                <li
+                  key={item.id}
+                  className="w-full flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                >
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start hover:cursor-pointer"
+                    onClick={() => setActiveMenuItem(item.id)}
+                  >
+                    <item.icon className="size-4" />
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      {item.label}
+                    </span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </SidebarGroup>
+        )}
+        {activeMenuItem === "online" && <OnlineUsers />}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
