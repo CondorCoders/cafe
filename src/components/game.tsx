@@ -23,7 +23,16 @@ export const Game = ({ user }: GameProps) => {
   const playersRefs = useRef<Record<string, Phaser.Physics.Matter.Sprite>>({});
   const playersUsernames = useRef<Record<string, Phaser.GameObjects.Text>>({});
   const [userId] = useState(user?.id || generateRandomNumber());
-  const remotePlayerStates = useRef<Record<string, { prev: { x: number, y: number }, next: { x: number, y: number }, lastUpdate: number }>>({});
+  const remotePlayerStates = useRef<
+    Record<
+      string,
+      {
+        prev: { x: number; y: number };
+        next: { x: number; y: number };
+        lastUpdate: number;
+      }
+    >
+  >({});
 
   const { players, handlePlayerMove } = useRealtimePlayers({
     roomName: "virtual-cafe",
@@ -54,8 +63,13 @@ export const Game = ({ user }: GameProps) => {
             lastUpdate: Date.now(),
           };
         } else {
-          remotePlayerStates.current[id].prev = { ...remotePlayerStates.current[id].next };
-          remotePlayerStates.current[id].next = { x: playerData.position.x, y: playerData.position.y };
+          remotePlayerStates.current[id].prev = {
+            ...remotePlayerStates.current[id].next,
+          };
+          remotePlayerStates.current[id].next = {
+            x: playerData.position.x,
+            y: playerData.position.y,
+          };
           remotePlayerStates.current[id].lastUpdate = Date.now();
         }
       }
@@ -94,7 +108,6 @@ export const Game = ({ user }: GameProps) => {
         playersRefs.current[id] = newPlayer!;
       } else {
         const existingPlayer = playersRefs.current[id];
-        playersUsernames.current[id];
 
         if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
           existingPlayer.anims.play(playerData.animation || "turn", true);
@@ -333,11 +346,21 @@ export const Game = ({ user }: GameProps) => {
         Object.entries(playersRefs.current).forEach(([id, sprite]) => {
           if (id !== userId.toString()) {
             const state = remotePlayerStates.current[id];
-            if (sprite && state) { // Verifica que sprite y state existan
+            if (sprite && state) {
+              // Verifica que sprite y state existan
               const now = Date.now();
-              const t = Math.min((now - state.lastUpdate) / INTERPOLATION_DURATION, 1);
-              sprite.x = Phaser.Math.Interpolation.Linear([state.prev.x, state.next.x], t);
-              sprite.y = Phaser.Math.Interpolation.Linear([state.prev.y, state.next.y], t);
+              const t = Math.min(
+                (now - state.lastUpdate) / INTERPOLATION_DURATION,
+                1
+              );
+              sprite.x = Phaser.Math.Interpolation.Linear(
+                [state.prev.x, state.next.x],
+                t
+              );
+              sprite.y = Phaser.Math.Interpolation.Linear(
+                [state.prev.y, state.next.y],
+                t
+              );
               playersUsernames.current[id].setPosition(sprite.x, sprite.y - 40);
               sprite.setDepth(sprite.y);
             }
