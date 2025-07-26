@@ -23,12 +23,13 @@ export const Game = ({ user }: GameProps) => {
   const playersRefs = useRef<Record<string, Phaser.Physics.Matter.Sprite>>({});
   const playersUsernames = useRef<Record<string, Phaser.GameObjects.Text>>({});
   const [userId] = useState(user?.id || generateRandomNumber());
+  const remotePlayerStates = useRef<Record<string, { prev: { x: number, y: number }, next: { x: number, y: number }, lastUpdate: number }>>({});
 
   const { players, handlePlayerMove } = useRealtimePlayers({
     roomName: "virtual-cafe",
     userId: userId.toString(),
     username: user?.username || "Guest",
-    throttleMs: 100,
+    throttleMs: 50,
   });
 
   // Referencia para acceder a players en Phaser sin recrear el juego
@@ -44,6 +45,20 @@ export const Game = ({ user }: GameProps) => {
 
     // 1. Crear/actualizar jugadores existentes
     Object.entries(players).forEach(([id, playerData]) => {
+      // Guardar posiciones previas y nuevas para **interpolación temporal**
+      if (id !== userId.toString()) {
+        if (!remotePlayerStates.current[id]) {
+          remotePlayerStates.current[id] = {
+            prev: { x: playerData.position.x, y: playerData.position.y },
+            next: { x: playerData.position.x, y: playerData.position.y },
+            lastUpdate: Date.now(),
+          };
+        } else {
+          remotePlayerStates.current[id].prev = { ...remotePlayerStates.current[id].next };
+          remotePlayerStates.current[id].next = { x: playerData.position.x, y: playerData.position.y };
+          remotePlayerStates.current[id].lastUpdate = Date.now();
+        }
+      }
       if (!playersRefs.current[id]) {
         const newPlayer = scene.current?.matter.add.sprite(
           playerData.position.x,
@@ -58,6 +73,10 @@ export const Game = ({ user }: GameProps) => {
         });
         newPlayer?.setFixedRotation();
         newPlayer?.setOrigin(0.5, 0.6);
+        // CAMBIO: Hacer que los jugadores remotos sean sensores
+        if (id !== userId.toString()) {
+          newPlayer?.setSensor(true); // CAMBIO: Jugador remoto no colisiona
+        }
 
         const label = scene.current?.add.text(
           newPlayer?.x || playerData.position.x,
@@ -75,17 +94,8 @@ export const Game = ({ user }: GameProps) => {
         playersRefs.current[id] = newPlayer!;
       } else {
         const existingPlayer = playersRefs.current[id];
-        const existingUsername = playersUsernames.current[id];
+        playersUsernames.current[id];
 
-        existingPlayer.setPosition(
-          playerData.position.x,
-          playerData.position.y
-        );
-        existingUsername.setPosition(
-          playerData.position.x,
-          playerData.position.y - 40
-        );
-        existingPlayer.setDepth(playerData.position.y);
         if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
           existingPlayer.anims.play(playerData.animation || "turn", true);
         }
@@ -208,6 +218,8 @@ export const Game = ({ user }: GameProps) => {
         });
         player.current.setFixedRotation();
         player.current.setOrigin(0.5, 0.6);
+        player.current.setBounce(0); // CAMBIO: Sin rebote para el jugador local
+        player.current.setFriction(0.1, 0.1, 0.1); // CAMBIO: Baja fricción para el jugador local
 
         playerUsername.current = this.add.text(
           player.current.x,
@@ -284,7 +296,7 @@ export const Game = ({ user }: GameProps) => {
       function update(this: Phaser.Scene) {
         const cursors = this.input.keyboard?.createCursorKeys();
 
-        const speed = 3;
+        const speed = 2.7;
         let velocityX = 0;
         let velocityY = 0;
 
@@ -315,6 +327,22 @@ export const Game = ({ user }: GameProps) => {
         if (player.current) {
           player.current.setDepth(player.current.y);
         }
+
+        // INTERPOLACIÓN TEMPORAL PARA JUGADORES REMOTOS
+        const INTERPOLATION_DURATION = 50; // ms, igual al throttle del servidor
+        Object.entries(playersRefs.current).forEach(([id, sprite]) => {
+          if (id !== userId.toString()) {
+            const state = remotePlayerStates.current[id];
+            if (sprite && state) { // Verifica que sprite y state existan
+              const now = Date.now();
+              const t = Math.min((now - state.lastUpdate) / INTERPOLATION_DURATION, 1);
+              sprite.x = Phaser.Math.Interpolation.Linear([state.prev.x, state.next.x], t);
+              sprite.y = Phaser.Math.Interpolation.Linear([state.prev.y, state.next.y], t);
+              playersUsernames.current[id].setPosition(sprite.x, sprite.y - 40);
+              sprite.setDepth(sprite.y);
+            }
+          }
+        });
 
         if (
           player.current?.x === playersData.current[userId]?.position.x &&
