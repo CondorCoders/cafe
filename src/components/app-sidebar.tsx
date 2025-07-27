@@ -1,10 +1,17 @@
 "use client";
-import { ChevronUp, MessageCircle, Music, UsersRound } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronUp,
+  MessageCircle,
+  Music,
+  UsersRound,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -20,6 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { OnlineUsers } from "./sidebar-features/online-users";
+import { useOnlineUsers } from "@/context/online-users-context";
 
 const menuItems = [
   { id: "online", label: "Online", icon: UsersRound },
@@ -40,10 +48,23 @@ interface AppSidebarProps {
 
 export const AppSidebar = ({ user }: AppSidebarProps) => {
   const [activeMenuItem, setActiveMenuItem] = useState<string | undefined>();
+  const { onlineUsers } = useOnlineUsers();
+
+  const numberOfOnlineUsers = Object.keys(onlineUsers).length;
 
   return (
     <Sidebar variant="floating" className="md:absolute" collapsible="icon">
       <SidebarTrigger className="group-data-[collapsible=icon]:mx-auto mt-2" />
+      {activeMenuItem && (
+        <SidebarHeader className="flex flex-row items-center gap-2">
+          <Button variant="ghost" onClick={() => setActiveMenuItem(undefined)}>
+            <ArrowLeft className="mr-2" />
+          </Button>
+          <h2 className="text-lg font-bold">
+            {menuItems.find((item) => item.id === activeMenuItem)?.label}
+          </h2>
+        </SidebarHeader>
+      )}
       <SidebarContent>
         {!activeMenuItem && (
           <SidebarGroup>
@@ -60,7 +81,8 @@ export const AppSidebar = ({ user }: AppSidebarProps) => {
                   >
                     <item.icon className="size-4" />
                     <span className="group-data-[collapsible=icon]:hidden">
-                      {item.label}
+                      {item.label}{" "}
+                      {item.id === "online" && `(${numberOfOnlineUsers})`}
                     </span>
                   </Button>
                 </li>
@@ -68,7 +90,7 @@ export const AppSidebar = ({ user }: AppSidebarProps) => {
             </ul>
           </SidebarGroup>
         )}
-        {activeMenuItem === "online" && <OnlineUsers />}
+        {activeMenuItem === "online" && <OnlineUsers user={user} />}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
