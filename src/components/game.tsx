@@ -23,6 +23,7 @@ export const Game = ({ user }: GameProps) => {
   const playersRefs = useRef<Record<string, Phaser.Physics.Matter.Sprite>>({});
   const playersUsernames = useRef<Record<string, Phaser.GameObjects.Text>>({});
   const [userId] = useState(user?.id || generateRandomNumber());
+  const isInputFocusedRef = useRef(false);
   const remotePlayerStates = useRef<
     Record<
       string,
@@ -140,7 +141,7 @@ export const Game = ({ user }: GameProps) => {
         delete playersUsernames.current[playerId];
       }
     });
-  }, [players]);
+  }, [players, userId]);
 
   useEffect(() => {
     const initGame = async () => {
@@ -159,6 +160,7 @@ export const Game = ({ user }: GameProps) => {
 
       function create(this: Phaser.Scene) {
         scene.current = this;
+
         // Creación del mapa
         const map = this.make.tilemap({ key: "tilemap" });
         // Cargar los tilesets según el nombre en el JSON
@@ -307,6 +309,52 @@ export const Game = ({ user }: GameProps) => {
       }
 
       function update(this: Phaser.Scene) {
+        // Verifica si un input está enfocado
+        if (isInputFocusedRef.current) {
+          player.current?.setVelocity(0, 0);
+          player.current?.anims.play("turn", true);
+
+          // Actualizar posición del nombre de usuario del jugador
+          playerUsername.current?.setPosition(
+            player.current?.x || 0,
+            (player.current?.y || 0) - 40
+          );
+
+          if (player.current) {
+            player.current.setDepth(player.current.y);
+          }
+
+          // Continuar manejando la interpolación para otros jugadores
+          const INTERPOLATION_DURATION = 50;
+          Object.entries(playersRefs.current).forEach(([id, sprite]) => {
+            if (id !== userId.toString()) {
+              const state = remotePlayerStates.current[id];
+              if (sprite && state) {
+                const now = Date.now();
+                const t = Math.min(
+                  (now - state.lastUpdate) / INTERPOLATION_DURATION,
+                  1
+                );
+                sprite.x = Phaser.Math.Interpolation.Linear(
+                  [state.prev.x, state.next.x],
+                  t
+                );
+                sprite.y = Phaser.Math.Interpolation.Linear(
+                  [state.prev.y, state.next.y],
+                  t
+                );
+                playersUsernames.current[id].setPosition(
+                  sprite.x,
+                  sprite.y - 40
+                );
+                sprite.setDepth(sprite.y);
+              }
+            }
+          });
+          return; // Salir temprano, no procesar controles del juego
+        }
+
+        // Controles del juego cuando no hay input activo
         const cursors = this.input.keyboard?.createCursorKeys();
 
         const speed = 2.7;
@@ -404,6 +452,9 @@ export const Game = ({ user }: GameProps) => {
           width: "100%",
           height: "100%",
         },
+        input: {
+          keyboard: true,
+        },
         scene: {
           preload: preload,
           create: create,
@@ -414,6 +465,63 @@ export const Game = ({ user }: GameProps) => {
     };
 
     initGame();
+  }, [handlePlayerMove, user?.username, userId]);
+
+  // Listeners para manejar el estado de input focus
+  useEffect(() => {
+    const isInputElement = (target: HTMLElement) =>
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.contentEditable === "true";
+
+    // Habilita o deshabilita el manejo de teclado de Phaser
+    const togglePhaserKeyboard = (enabled: boolean) => {
+      if (scene.current?.input?.keyboard) {
+        scene.current.input.keyboard.manager.enabled = enabled;
+      }
+    };
+
+    // Listener para cuando se enfoca un input
+    const handleFocusIn = (event: FocusEvent) => {
+      if (isInputElement(event.target as HTMLElement)) {
+        isInputFocusedRef.current = true;
+        togglePhaserKeyboard(false);
+      }
+    };
+
+    // Listener para cuando se desenfoca un input
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const activeElement = document.activeElement as HTMLElement;
+        const inputFocused = activeElement && isInputElement(activeElement);
+        isInputFocusedRef.current = !!inputFocused;
+        togglePhaserKeyboard(!inputFocused);
+      }, 10);
+    };
+
+    // Listener para click en el canvas
+    const handleCanvasClick = (event: MouseEvent) => {
+      if ((event.target as HTMLElement).tagName === "CANVAS") {
+        const activeElement = document.activeElement as HTMLElement;
+        if (activeElement && isInputElement(activeElement)) {
+          activeElement.blur();
+        }
+      }
+    };
+
+    document.addEventListener("focusin", handleFocusIn, true);
+    document.addEventListener("focusout", handleFocusOut, true);
+    document
+      .getElementById("game-container")
+      ?.addEventListener("click", handleCanvasClick);
+
+    return () => {
+      document.removeEventListener("focusin", handleFocusIn, true);
+      document.removeEventListener("focusout", handleFocusOut, true);
+      document
+        .getElementById("game-container")
+        ?.removeEventListener("click", handleCanvasClick);
+    };
   }, []);
 
   return <div id="game-container" className="min-h-dvh w-full"></div>;

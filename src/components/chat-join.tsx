@@ -19,14 +19,11 @@ export const ChatJoin = ({
   };
 
   return (
-    <>
-      <RealtimeChat
-        roomName={roomId}
-        username={user.username}
-        messages={messages}
-        onMessage={handleOnMessage}
-      />
-      ;
-    </>
+    <RealtimeChat
+      roomName={roomId}
+      username={user.username}
+      messages={messages}
+      onMessage={handleOnMessage}
+    />
   );
 };

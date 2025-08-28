@@ -38,7 +38,7 @@ export const OnlineUsers = ({ user }: OnlineUsersProps) => {
   }, [supabase]);
 
   return (
-    <div className="w-full p-4">
+    <div className="w-full h-full flex flex-col p-4">
       <ul className="w-full flex flex-col gap-2 max-h-1/2 overflow-y-auto">
         {Object.values(onlineUsers).map((presence) => (
           <li key={presence.user_id} className="w-full flex items-center gap-1">
@@ -52,16 +52,20 @@ export const OnlineUsers = ({ user }: OnlineUsersProps) => {
         ))}
       </ul>
       {/* Chat General */}
-      <ChatJoin
-        user={user}
-        roomId={ROOM_NAME}
-        messages={messages?.map((message) => ({
-          id: message.id,
-          content: message.content,
-          user: { name: message.username },
-          createdAt: message.created_at,
-        }))}
-      />
+      <h2 className="mt-4 mb-2 text-lg font-bold">Chat General</h2>
+
+      <div className="flex-1">
+        <ChatJoin
+          user={user}
+          roomId={ROOM_NAME}
+          messages={messages?.map((message) => ({
+            id: message.id,
+            content: message.content,
+            user: { name: message.username },
+            createdAt: message.created_at,
+          }))}
+        />
+      </div>
     </div>
   );
 };
