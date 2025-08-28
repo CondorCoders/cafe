@@ -31,47 +31,75 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Do not run code between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
+  // IMPORTANT: You *must* try to retrieve the user on the server-side to 
+  // ensure that the session is refreshed properly
+  
+  try {
+    const {
+      data: { user },
+      error
+    } = await supabase.auth.getUser();
 
-  // IMPORTANT: DO NOT REMOVE auth.getUser()
+    // If there's an auth error (like refresh token issues), clear the session
+    if (error) {
+      console.log("Auth error in middleware:", error.message);
+      // Clear any auth cookies to force a fresh login
+      const response = NextResponse.next({ request });
+      response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token');
+      response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token.0');
+      response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token.1');
+      
+      // If trying to access a protected route, redirect to login
+      if (protectedRoutes.includes(request.nextUrl.pathname)) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/auth/login";
+        return NextResponse.redirect(url);
+      }
+      
+      return response;
+    }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    if (!user && protectedRoutes.includes(request.nextUrl.pathname)) {
+      // no user, potentially respond by redirecting the user to the login page
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/login";
+      return NextResponse.redirect(url);
+    }
 
-  if (!user && protectedRoutes.includes(request.nextUrl.pathname)) {
-    // no user, potentially respond by redirecting the user to the login page
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
-    return NextResponse.redirect(url);
-  }
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding")
+        .eq("id", user.id)
+        .single();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("onboarding")
-    .eq("id", user?.id)
-    .single();
+      if (
+        profile?.onboarding === false &&
+        request.nextUrl.pathname !== "/onboarding"
+      ) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/onboarding";
+        return NextResponse.redirect(url);
+      }
 
-  if (
-    user &&
-    profile?.onboarding === false &&
-    request.nextUrl.pathname !== "/onboarding"
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/onboarding";
-    return NextResponse.redirect(url);
-  }
-
-  if (user && request.nextUrl.pathname.startsWith("/auth")) {
-    // user is logged in, redirect to the home page
-    const url = request.nextUrl.clone();
-    url.pathname = "/profile";
-    return NextResponse.redirect(url);
-  }
-
-  // FIXME: No permitir ingresar a otras rutas sin hacer el onboarding
+      if (request.nextUrl.pathname.startsWith("/auth")) {
+        // user is logged in, redirect to the home page
+        const url = request.nextUrl.clone();
+        url.pathname = "/profile";
+        return NextResponse.redirect(url);
+      }
+    }
+  } catch (authError) {
+    // If there's any error during auth check, log it and handle gracefully
+    console.error("Middleware auth error:", authError);
+    
+    // If trying to access a protected route, redirect to login
+    if (protectedRoutes.includes(request.nextUrl.pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/login";
+      return NextResponse.redirect(url);
+    }
+  }  // FIXME: No permitir ingresar a otras rutas sin hacer el onboarding
   // if (!profile?.onboarding) {
   //   // user is logged in and has not completed onboarding, redirect to onboarding page
   //   const url = request.nextUrl.clone();

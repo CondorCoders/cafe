@@ -3,6 +3,7 @@ import { createClient } from "./supabase/client";
 
 export const storeMessages = async (
   roomId: string,
+  userId: string,
   messages: ChatMessage[]
 ) => {
   const supabase = createClient();
@@ -17,7 +18,7 @@ export const storeMessages = async (
       content: message.content,
       username: message.user.name,
       created_at: message.createdAt,
-      user_id: crypto.randomUUID(),
+      user_id: userId,
       room: roomId,
     })),
     { onConflict: "id" }

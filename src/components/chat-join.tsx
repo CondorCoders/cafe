@@ -15,7 +15,7 @@ export const ChatJoin = ({
   user: User;
 }) => {
   const handleOnMessage = async (messages: ChatMessage[]) => {
-    await storeMessages(roomId, messages);
+    await storeMessages(roomId, user.id, messages);
   };
 
   return (
