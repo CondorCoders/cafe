@@ -33,7 +33,6 @@ import { useOnlineUsers } from "@/context/online-users-context";
 import { GeneralChat } from "./sidebar-features/general-chat";
 import { MusicPlayer } from "./sidebar-features/music-player";
 import { Pomodoro } from "./sidebar-features/pomodoro";
-import { set } from "zod";
 
 const menuItems = [
   { id: "online", label: "Online", icon: UsersRound },
