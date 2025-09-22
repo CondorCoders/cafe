@@ -2,40 +2,9 @@
 
 import { useOnlineUsers } from "@/context/online-users-context";
 import { Button } from "../ui/button";
-import { createClient } from "@/lib/supabase/client";
-import { ChatJoin } from "../chat-join";
-import { User } from "../app-sidebar";
-import { useEffect, useState } from "react";
 
-const ROOM_NAME = "general-chat";
-
-interface OnlineUsersProps {
-  user: User;
-}
-
-interface MessageType {
-  id: string;
-  content: string;
-  username: string;
-  created_at: string;
-}
-
-export const OnlineUsers = ({ user }: OnlineUsersProps) => {
+export const OnlineUsers = () => {
   const { onlineUsers } = useOnlineUsers();
-
-  const supabase = createClient();
-  const [messages, setMessages] = useState<MessageType[] | null>(null);
-
-  useEffect(() => {
-    const fetchMessages = async () => {
-      const { data } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("room", ROOM_NAME);
-      setMessages(data);
-    };
-    fetchMessages();
-  }, [supabase]);
 
   return (
     <div className="w-full h-full flex flex-col p-4">
@@ -56,25 +25,6 @@ export const OnlineUsers = ({ user }: OnlineUsersProps) => {
             </li>
           ))}
         </ul>
-      </div>
-
-      {/* Chat General Section */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-          Chat General
-        </h3>
-        <div className="flex-1 flex flex-col min-h-0">
-          <ChatJoin
-            user={user}
-            roomId={ROOM_NAME}
-            messages={messages?.map((message) => ({
-              id: message.id,
-              content: message.content,
-              user: { name: message.username },
-              createdAt: message.created_at,
-            }))}
-          />
-        </div>
       </div>
     </div>
   );

@@ -28,6 +28,7 @@ import { useState } from "react";
 import { Button } from "./ui/button";
 import { OnlineUsers } from "./sidebar-features/online-users";
 import { useOnlineUsers } from "@/context/online-users-context";
+import { GeneralChat } from "./sidebar-features/general-chat";
 
 const menuItems = [
   { id: "online", label: "Online", icon: UsersRound },
@@ -90,7 +91,8 @@ export const AppSidebar = ({ user }: AppSidebarProps) => {
             </ul>
           </SidebarGroup>
         )}
-        {activeMenuItem === "online" && <OnlineUsers user={user} />}
+        {activeMenuItem === "online" && <OnlineUsers />}
+        {activeMenuItem === "chat" && <GeneralChat user={user} />}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
