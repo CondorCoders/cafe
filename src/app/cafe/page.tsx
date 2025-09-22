@@ -1,6 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { Game } from "@/components/game";
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { OnlineUsersProvider } from "@/context/online-users-context";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -26,7 +25,7 @@ export default async function CafePage() {
   return (
     <OnlineUsersProvider>
       <div className="relative w-full h-full">
-        <SidebarProvider>
+        <div>
           <AppSidebar user={profile} />
           <main className="w-full h-full">
             <Game
@@ -36,7 +35,7 @@ export default async function CafePage() {
               }}
             />
           </main>
-        </SidebarProvider>
+        </div>
       </div>
     </OnlineUsersProvider>
   );
