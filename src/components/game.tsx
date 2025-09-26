@@ -361,22 +361,48 @@ export const Game = ({ user }: GameProps) => {
         let velocityX = 0;
         let velocityY = 0;
 
-        if (cursors?.left.isDown) {
-          velocityX = -speed;
-          player.current?.anims.play("left", true);
-        } else if (cursors?.right.isDown) {
-          velocityX = speed;
-          player.current?.anims.play("right", true);
-        } else if (cursors?.down.isDown) {
-          velocityY = speed;
-          player.current?.anims.play("down", true);
-        } else if (cursors?.up.isDown) {
-          velocityY = -speed;
-          player.current?.anims.play("up", true);
-        } else {
-          velocityX = 0;
-          velocityY = 0;
-          player.current?.anims.play("turn", true);
+        // Leer teclas WASD además de las flechas. Llamamos a addKeys aquí
+        // para no tener que cambiar la función create() — cambio mínimo.
+        const keys = this.input.keyboard?.addKeys({
+          W: Phaser.Input.Keyboard.KeyCodes.W,
+          A: Phaser.Input.Keyboard.KeyCodes.A,
+          S: Phaser.Input.Keyboard.KeyCodes.S,
+          D: Phaser.Input.Keyboard.KeyCodes.D,
+        }) as unknown as Record<string, Phaser.Input.Keyboard.Key> | undefined;
+
+        // Permitir comprobaciones independientes por eje para habilitar el movimiento diagonal.
+        if (cursors || keys) {
+          if ((cursors && cursors.left.isDown) || (keys && keys.A?.isDown)) {
+            velocityX = -speed;
+          }
+          if ((cursors && cursors.right.isDown) || (keys && keys.D?.isDown)) {
+            velocityX = speed;
+          }
+          if ((cursors && cursors.down.isDown) || (keys && keys.S?.isDown)) {
+            velocityY = speed;
+          }
+          if ((cursors && cursors.up.isDown) || (keys && keys.W?.isDown)) {
+            velocityY = -speed;
+          }
+
+          // Normalizar la velocidad para que la velocidad diagonal sea igual a la velocidad en ejes cardinales
+          const mag = Math.hypot(velocityX, velocityY);
+          if (mag > speed && mag !== 0) {
+            const scale = speed / mag;
+            velocityX *= scale;
+            velocityY *= scale;
+          }
+
+          // Elegir la animación por el eje dominante (comportamiento más simple para diagonal)
+          if (velocityX === 0 && velocityY === 0) {
+            player.current?.anims.play("turn", true);
+          } else if (Math.abs(velocityX) >= Math.abs(velocityY)) {
+            if (velocityX < 0) player.current?.anims.play("left", true);
+            else player.current?.anims.play("right", true);
+          } else {
+            if (velocityY < 0) player.current?.anims.play("up", true);
+            else player.current?.anims.play("down", true);
+          }
         }
 
         player.current?.setVelocity(velocityX, velocityY);
