@@ -29,7 +29,7 @@ export function LoginForm({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "twitch",
         options: {
-          redirectTo: `${window.location.origin}/auth/oauth?next=/profile`,
+          redirectTo: `${window.location.origin}/auth/oauth?next=/cafe`,
         },
       });
 

@@ -1,61 +1,70 @@
-import { LogoutButton } from "@/components/logout-button";
+import { LoginButton } from "@/components/login-button";
+import { Navbar } from "@/components/navbar";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
 import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+
+  const userId = await supabase.auth
+    .getUser()
+    .then(({ data }) => data.user?.id);
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <h1>Hola mundo</h1>
-        {/* log out */}
-        <LogoutButton />
+    <div className="font-[family-name:var(--font-geist-sans)]">
+      <Navbar user={userId ? { id: userId, ...profile } : null} />
+      <main className="flex flex-col gap-[32px]">
+        <section className="w-full min-h-screen mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="flex flex-col ml-auto justify-center max-w-2xl gap-6 p-4">
+            <h1 className="text-6xl text-left font-jersey leading-[0.8]">
+              El <span className="text-purple">coworking virtual</span> de la
+              comunidad de programación{" "}
+              <span className="text-purple">CondorCoders</span>
+            </h1>
+            <p className="text-xl">
+              Chatea con otros devs, usar pomodoros, escuchar música y tomar
+              notas mientras estudias en comunidad.
+            </p>
+            <div className="flex gap-4">
+              {userId ? (
+                <Link
+                  href="/cafe"
+                  className={buttonVariants({ variant: "default" })}
+                >
+                  Ir al café
+                </Link>
+              ) : (
+                <LoginButton />
+              )}
+              <Link href="https://github.com/CondorCoders/cafe" target="_blank">
+                <Button variant="outline">Ver en GitHub</Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="w-full h-full bg-[url(/assets/mapa.png)] bg-center bg-no-repeat bg-cover">
+            <div className="w-full h-full flex flex-col justify-center items-center bg-gradient-to-b from-purple/70 via-pink-300/70 to-blue-300/70">
+              <div className="relative aspect-square w-full md:w-sm">
+                <Image
+                  src="/assets/characters-preview/sofia.png"
+                  alt="Hero"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      <footer>Hecho con ❤️ por la comunidad de CondorCoders</footer>
     </div>
   );
 }
