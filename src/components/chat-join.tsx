@@ -3,7 +3,7 @@
 import { RealtimeChat } from "./realtime-chat";
 import { ChatMessage } from "@/hooks/use-realtime-chat";
 import { storeMessages } from "@/lib/store-messages";
-import { User } from "./app-sidebar";
+import { User } from "./app-menu";
 
 export const ChatJoin = ({
   roomId,

@@ -60,6 +60,7 @@ interface Player {
   user: {
     id: string;
     name: string;
+    profile_url?: string;
   };
   animation?: string;
   color?: string;
@@ -74,8 +75,8 @@ interface PlayerEventPayload extends Player {
 export interface PresenceState {
   user_id: string;
   username: string;
-  color: string;
   online_at: string;
+  profile_url?: string;
 }
 
 export const useRealtimePlayers = ({
@@ -83,11 +84,13 @@ export const useRealtimePlayers = ({
   username,
   userId,
   throttleMs,
+  profile_url,
 }: {
   roomName: string;
   userId: string;
   username: string;
   throttleMs: number;
+  profile_url: string;
 }) => {
   // Color único para este usuario (se genera una sola vez)
   const [color] = useState(generateRandomColor());
@@ -110,7 +113,7 @@ export const useRealtimePlayers = ({
   // Función que prepara y envía los datos del movimiento del jugador
   const callback = useCallback(
     (event: Player) => {
-      const { position, user, color: userColor, animation } = event;
+      const { position, user, animation } = event;
 
       // Construye el payload con toda la información del jugador
       const payload: PlayerEventPayload = {
@@ -121,8 +124,8 @@ export const useRealtimePlayers = ({
         user: {
           id: user.id || userId,
           name: user.name || username,
+          profile_url: user.profile_url || profile_url,
         },
-        color: userColor || color,
         animation: animation,
         timestamp: new Date().getTime(), // Marca de tiempo para sincronización
       };
@@ -134,7 +137,7 @@ export const useRealtimePlayers = ({
         payload: payload,
       });
     },
-    [userId, username, color]
+    [userId, username, color, profile_url]
   );
 
   // Función throttled para manejar movimientos sin saturar la red
@@ -213,8 +216,8 @@ export const useRealtimePlayers = ({
               user: {
                 id: presence.user_id,
                 name: presence.username,
+                profile_url: presence.profile_url || "default-avatar.png",
               },
-              color: presence.color,
               animation: "turn",
               timestamp: new Date().getTime(),
             },
@@ -253,8 +256,8 @@ export const useRealtimePlayers = ({
           await channel.track({
             user_id: userId,
             username: username,
-            color: color,
             online_at: new Date().toISOString(),
+            profile_url: profile_url,
           });
         }
       });
@@ -264,7 +267,7 @@ export const useRealtimePlayers = ({
       // Supabase automáticamente hace untrack() de la presencia
       channel.unsubscribe();
     };
-  }, [roomName, userId, username, color]);
+  }, [roomName, userId, username]);
 
   return {
     players, // Posiciones actuales de todos los jugadores
