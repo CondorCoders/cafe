@@ -5,6 +5,7 @@ import {
   useRealtimePlayers,
 } from "@/hooks/use-realtime-players";
 import { useEffect, useRef, useState } from "react";
+import { LoadingScreen } from "./loading-screen";
 
 interface UserProfile {
   id: string;
@@ -24,6 +25,10 @@ export const Game = ({ user }: GameProps) => {
   const playersUsernames = useRef<Record<string, Phaser.GameObjects.Text>>({});
   const [userId] = useState(user?.id || generateRandomNumber());
   const isInputFocusedRef = useRef(false);
+
+  // Estados para la carga del juego
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const remotePlayerStates = useRef<
     Record<
       string,
@@ -145,9 +150,27 @@ export const Game = ({ user }: GameProps) => {
 
   useEffect(() => {
     const initGame = async () => {
+      // Verificar que el contenedor existe antes de inicializar
+      const container = document.getElementById("game-container");
+      if (!container) {
+        setTimeout(initGame, 100);
+        return;
+      }
+
       const Phaser = await import("phaser");
       // const Matter = await import("matter-js");
       function preload(this: Phaser.Scene) {
+        // Configurar callbacks de progreso
+        this.load.on("progress", (progress: number) => {
+          const percentage = Math.round(progress * 70); // 70% para assets
+          setLoadingProgress(percentage);
+        });
+
+        this.load.on("complete", () => {
+          setLoadingProgress(85);
+        });
+
+        // Cargar assets
         this.load.image("atlas_48x", "assets/atlas_48x.png");
         this.load.image("interiors", "assets/Interiors_free_48x48.png");
         this.load.image("room_builder", "assets/Room_Builder_free_48x48.png");
@@ -306,6 +329,14 @@ export const Game = ({ user }: GameProps) => {
           frameRate: 10,
           repeat: -1,
         });
+
+        // Finalizar la carga
+        setLoadingProgress(100);
+
+        // Ocultar pantalla de carga después de una breve pausa
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 800);
       }
 
       function update(this: Phaser.Scene) {
@@ -460,11 +491,28 @@ export const Game = ({ user }: GameProps) => {
           create: create,
           update: update,
         },
+
+        render: {
+          antialias: false, // Deshabilitar antialiasing para mejor rendimiento
+          pixelArt: true, // Activar para pixel art
+          roundPixels: true, // Redondear pixeles para mejor renderizado
+        },
       };
       gameContainer.current = new Phaser.Game(config);
     };
 
-    initGame();
+    // Delay para asegurar que el DOM está listo
+    const timer = setTimeout(() => {
+      initGame();
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      if (gameContainer.current) {
+        gameContainer.current.destroy(true);
+        gameContainer.current = null;
+      }
+    };
   }, [handlePlayerMove, user?.username, userId]);
 
   // Listeners para manejar el estado de input focus
@@ -524,5 +572,22 @@ export const Game = ({ user }: GameProps) => {
     };
   }, []);
 
-  return <div id="game-container" className="min-h-dvh w-full"></div>;
+  return (
+    <div className="relative min-h-dvh w-full">
+      {/* Pantalla de carga */}
+      {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
+
+      {/* Container del juego */}
+      <div
+        id="game-container"
+        className="min-h-dvh w-full"
+        style={{
+          position: "relative",
+          zIndex: isLoading ? -1 : 1,
+          opacity: isLoading ? 0 : 1,
+          transition: "opacity 0.5s ease-in-out",
+        }}
+      ></div>
+    </div>
+  );
 };
