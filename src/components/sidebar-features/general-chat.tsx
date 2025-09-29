@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { ChatJoin } from "../chat-join";
-import { User } from "../app-sidebar";
+import { User } from "../app-menu";
 
 interface MessageType {
   id: string;
@@ -34,17 +34,15 @@ export const GeneralChat = ({ user }: GeneralChatProps) => {
   }, [supabase]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <ChatJoin
-        user={user}
-        roomId={ROOM_NAME}
-        messages={messages?.map((message) => ({
-          id: message.id,
-          content: message.content,
-          user: { name: message.username },
-          createdAt: message.created_at,
-        }))}
-      />
-    </div>
+    <ChatJoin
+      user={user}
+      roomId={ROOM_NAME}
+      messages={messages?.map((message) => ({
+        id: message.id,
+        content: message.content,
+        user: { name: message.username },
+        createdAt: message.created_at,
+      }))}
+    />
   );
 };

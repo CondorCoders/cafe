@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { LogoutButton } from "./logout-button";
 import Link from "next/link";
-import { User } from "./app-sidebar";
+import { User } from "./app-menu";
 
 interface NavbarProps {
   user?: User;

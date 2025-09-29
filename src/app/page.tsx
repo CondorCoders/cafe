@@ -1,6 +1,6 @@
 import { LoginButton } from "@/components/login-button";
 import { Navbar } from "@/components/navbar";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import Image from "next/image";
 import Link from "next/link";
@@ -30,8 +30,8 @@ export default async function Home() {
               <span className="text-purple">CondorCoders</span>
             </h1>
             <p className="text-xl">
-              Chatea con otros devs, usar pomodoros, escuchar música y tomar
-              notas mientras estudias en comunidad.
+              Chatea con otros devs, usa pomodoros, escucha música y toma notas
+              mientras estudias en comunidad.
             </p>
             <div className="flex gap-4">
               {userId ? (
@@ -44,8 +44,12 @@ export default async function Home() {
               ) : (
                 <LoginButton />
               )}
-              <Link href="https://github.com/CondorCoders/cafe" target="_blank">
-                <Button variant="outline">Ver en GitHub</Button>
+              <Link
+                className={buttonVariants({ variant: "outline" })}
+                href="https://github.com/CondorCoders/cafe"
+                target="_blank"
+              >
+                Ver en GitHub
               </Link>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppMenu } from "@/components/app-menu";
 import { Game } from "@/components/game";
 import { OnlineUsersProvider } from "@/context/online-users-context";
 import { createClient } from "@/lib/supabase/server";
@@ -26,12 +26,13 @@ export default async function CafePage() {
     <OnlineUsersProvider>
       <div className="relative w-full h-full">
         <div>
-          <AppSidebar user={profile} />
+          <AppMenu user={profile} />
           <main className="w-full h-full">
             <Game
               user={{
                 id: userId || "",
                 username: profile?.username || "Guest",
+                profile_url: profile?.profile_url || "default-avatar.png",
               }}
             />
           </main>

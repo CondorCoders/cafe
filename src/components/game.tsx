@@ -10,6 +10,7 @@ import { LoadingScreen } from "./loading-screen";
 interface UserProfile {
   id: string;
   username: string;
+  profile_url: string;
 }
 
 interface GameProps {
@@ -44,6 +45,7 @@ export const Game = ({ user }: GameProps) => {
     roomName: "virtual-cafe",
     userId: userId.toString(),
     username: user?.username || "Guest",
+    profile_url: user?.profile_url || "default-avatar.png",
     throttleMs: 50,
   });
 
@@ -64,8 +66,8 @@ export const Game = ({ user }: GameProps) => {
       if (id !== userId.toString()) {
         if (!remotePlayerStates.current[id]) {
           remotePlayerStates.current[id] = {
-            prev: { x: playerData.position.x, y: playerData.position.y },
-            next: { x: playerData.position.x, y: playerData.position.y },
+            prev: { x: playerData?.position.x, y: playerData?.position.y },
+            next: { x: playerData?.position.x, y: playerData?.position.y },
             lastUpdate: Date.now(),
           };
         } else {
@@ -73,19 +75,19 @@ export const Game = ({ user }: GameProps) => {
             ...remotePlayerStates.current[id].next,
           };
           remotePlayerStates.current[id].next = {
-            x: playerData.position.x,
-            y: playerData.position.y,
+            x: playerData?.position.x,
+            y: playerData?.position.y,
           };
           remotePlayerStates.current[id].lastUpdate = Date.now();
         }
       }
       if (!playersRefs.current[id]) {
         const newPlayer = scene.current?.matter.add.sprite(
-          playerData.position.x,
-          playerData.position.y,
+          playerData?.position.x,
+          playerData?.position.y,
           "sofia"
         );
-        newPlayer?.setDepth(playerData.position.y);
+        newPlayer?.setDepth(playerData?.position.y);
         newPlayer?.setBody({
           type: "rectangle",
           width: 32,
@@ -99,8 +101,8 @@ export const Game = ({ user }: GameProps) => {
         }
 
         const label = scene.current?.add.text(
-          newPlayer?.x || playerData.position.x,
-          (newPlayer?.y || playerData.position.y) - 40,
+          newPlayer?.x || playerData?.position.x,
+          (newPlayer?.y || playerData?.position.y) - 40,
           playerData?.user.name || "Guest",
           {
             fontSize: "12px",
@@ -115,7 +117,7 @@ export const Game = ({ user }: GameProps) => {
       } else {
         const existingPlayer = playersRefs.current[id];
 
-        if (existingPlayer.anims.currentAnim?.key !== playerData.animation) {
+        if (existingPlayer.anims?.currentAnim?.key !== playerData.animation) {
           existingPlayer.anims.play(playerData.animation || "turn", true);
         }
       }
@@ -460,6 +462,7 @@ export const Game = ({ user }: GameProps) => {
           user: {
             id: userId.toString(),
             name: user?.username || "Guest",
+            profile_url: user?.profile_url || "default-avatar.png",
           },
           animation: player.current?.anims.currentAnim?.key,
         });
