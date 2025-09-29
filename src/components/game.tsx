@@ -476,7 +476,7 @@ export const Game = ({ user }: GameProps) => {
           default: "matter",
           matter: {
             gravity: { y: 0, x: 0 },
-            debug: true,
+            debug: false,
           },
         },
         parent: "game-container",
