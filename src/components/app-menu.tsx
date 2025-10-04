@@ -60,7 +60,11 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
         <div className="bg-indigo-950/90 w-full rounded-2xl mb-1 text-white relative max-h-96">
           <div className="w-full flex items-center px-3 py-1 justify-between border-b-[1px] border-gray-500">
             <h2 className="text-sm">
-              {menuItems.find((item) => item.id === activeMenuItem)?.label}
+              {
+                [...menuItems, ...tools].find(
+                  (item) => item.id === activeMenuItem
+                )?.label
+              }
             </h2>
             <Button
               variant="ghost"
