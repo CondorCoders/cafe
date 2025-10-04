@@ -43,7 +43,7 @@ export interface User {
 }
 
 interface AppSidebarProps {
-  user: User;
+  user: User; // Permite null para pruebas locales sin auth
 }
 
 export const AppMenu = ({ user }: AppSidebarProps) => {
@@ -55,7 +55,7 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
   const numberOfOnlineUsers = Object.keys(onlineUsers).length;
 
   return (
-    <div className="absolute z-50 m-4 bottom-0 left-0 max-w-96">
+    <div className="absolute z-50 m-4 bottom-0 left-0 w-96">
       {activeMenuItem && (
         <div className="bg-indigo-950/90 w-full rounded-2xl mb-1 text-white relative max-h-96">
           <div className="w-full flex items-center px-3 py-1 justify-between border-b-[1px] border-gray-500">
