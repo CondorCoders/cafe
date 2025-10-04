@@ -14,7 +14,9 @@ export const LoadingScreen = ({ loadingProgress }: LoadingScreenProps) => {
   };
   return (
     <div className="absolute inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center">
-      <h1 className="text-4xl font-bold text-amber-200 mb-6 font-jersey">Cafescript</h1>
+      <h1 className="text-4xl font-bold text-amber-200 mb-6 font-jersey">
+        Cafescript
+      </h1>
 
       {/* Coffee machine animation (from Uiverse.io by AnnixArt) */}
       <div className="container mb-6">
@@ -23,7 +25,7 @@ export const LoadingScreen = ({ loadingProgress }: LoadingScreenProps) => {
           <div className="coffee-header__buttons coffee-header__button-two"></div>
           <div
             className="coffee-header__display"
-            style={{ ["--p" as any]: `${loadingProgress}%` }}
+            style={{ ["--p" as string]: `${loadingProgress}%` }}
           ></div>
           <div className="coffee-header__details"></div>
         </div>
@@ -39,19 +41,27 @@ export const LoadingScreen = ({ loadingProgress }: LoadingScreenProps) => {
           ></div>
           <div
             className="coffee-medium__smoke coffee-medium__smoke-one"
-            style={{ animationPlayState: loadingProgress >= 25 ? "running" : "paused" }}
+            style={{
+              animationPlayState: loadingProgress >= 25 ? "running" : "paused",
+            }}
           ></div>
           <div
             className="coffee-medium__smoke coffee-medium__smoke-two"
-            style={{ animationPlayState: loadingProgress >= 50 ? "running" : "paused" }}
+            style={{
+              animationPlayState: loadingProgress >= 50 ? "running" : "paused",
+            }}
           ></div>
           <div
             className="coffee-medium__smoke coffee-medium__smoke-three"
-            style={{ animationPlayState: loadingProgress >= 75 ? "running" : "paused" }}
+            style={{
+              animationPlayState: loadingProgress >= 75 ? "running" : "paused",
+            }}
           ></div>
           <div
             className="coffee-medium__smoke coffee-medium__smoke-for"
-            style={{ animationPlayState: loadingProgress >= 90 ? "running" : "paused" }}
+            style={{
+              animationPlayState: loadingProgress >= 90 ? "running" : "paused",
+            }}
           ></div>
           <div className="coffee-medium__cup"></div>
         </div>
@@ -63,7 +73,9 @@ export const LoadingScreen = ({ loadingProgress }: LoadingScreenProps) => {
         <span className="text-2xl font-bold text-white drop-shadow-lg font-jersey">
           {Math.round(loadingProgress)}%
         </span>
-        <p className="text-amber-200 text-lg mt-1 font-jersey">{getMessage()}</p>
+        <p className="text-amber-200 text-lg mt-1 font-jersey">
+          {getMessage()}
+        </p>
       </div>
 
       <style jsx>{`
