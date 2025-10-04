@@ -11,6 +11,7 @@ export default async function CafePage() {
     .getUser()
     .then(({ data }) => data.user?.id);
 
+  // COMENTADO: Verificacion de perfil deshabilitada para pruebas locales
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("*")
@@ -24,8 +25,8 @@ export default async function CafePage() {
 
   return (
     <OnlineUsersProvider>
-      <div className="relative w-full h-full">
-        <div>
+      <div className="relative w-full h-dvh overflow-hidden">
+        <div className="w-full h-full">
           <AppMenu user={profile} />
           <main className="w-full h-full">
             <Game

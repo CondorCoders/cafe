@@ -85,7 +85,7 @@ export const RealtimeChat = ({
       {/* Messages */}
       <div
         ref={containerRef}
-        className="overflow-y-auto p-4 space-y-4 max-h-40"
+        className="overflow-y-auto p-4 space-y-4 max-h-40 [scrollbar-gutter:stable]"
       >
         {allMessages.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground">

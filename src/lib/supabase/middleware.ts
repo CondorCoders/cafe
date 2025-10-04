@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const protectedRoutes = ["/cafe"];
+const protectedRoutes = ["/cafe"]; // Comentado para pruebas locales
+// const protectedRoutes: string[] = []; //Descomentar para pruebas locales.
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -33,7 +34,7 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: You *must* try to retrieve the user on the server-side to 
   // ensure that the session is refreshed properly
-  
+
   try {
     const {
       data: { user },
@@ -48,17 +49,19 @@ export async function updateSession(request: NextRequest) {
       response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token');
       response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token.0');
       response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token.1');
-      
+
+      // COMENTADO: Redireccion a login deshabilitada para pruebas locales
       // If trying to access a protected route, redirect to login
       if (protectedRoutes.includes(request.nextUrl.pathname)) {
         const url = request.nextUrl.clone();
         url.pathname = "/auth/login";
         return NextResponse.redirect(url);
       }
-      
+
       return response;
     }
 
+    // COMENTADO: Verificacion de usuario deshabilitada para pruebas locales
     if (!user && protectedRoutes.includes(request.nextUrl.pathname)) {
       // no user, potentially respond by redirecting the user to the login page
       const url = request.nextUrl.clone();
@@ -92,14 +95,17 @@ export async function updateSession(request: NextRequest) {
   } catch (authError) {
     // If there's any error during auth check, log it and handle gracefully
     console.error("Middleware auth error:", authError);
-    
+
+    // COMENTADO: Redireccion a login deshabilitada para pruebas locales
     // If trying to access a protected route, redirect to login
     if (protectedRoutes.includes(request.nextUrl.pathname)) {
       const url = request.nextUrl.clone();
       url.pathname = "/auth/login";
       return NextResponse.redirect(url);
     }
-  }  // FIXME: No permitir ingresar a otras rutas sin hacer el onboarding
+  }
+
+  // FIXME: No permitir ingresar a otras rutas sin hacer el onboarding
   // if (!profile?.onboarding) {
   //   // user is logged in and has not completed onboarding, redirect to onboarding page
   //   const url = request.nextUrl.clone();

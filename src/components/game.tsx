@@ -26,6 +26,13 @@ export const Game = ({ user }: GameProps) => {
   const playersUsernames = useRef<Record<string, Phaser.GameObjects.Text>>({});
   const [userId] = useState(user?.id || generateRandomNumber());
   const isInputFocusedRef = useRef(false);
+  const lastFacing = useRef<"up" | "down" | "left" | "right">("down");
+  const userIdString = useRef(userId.toString());
+  const lastPlayerDepth = useRef(0);
+  const remotePlayersDepth = useRef<Record<string, number>>({});
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cursorsRef = useRef<Phaser.Types.Input.Keyboard.CursorKeys | null>(null);
+  const wasdKeysRef = useRef<Record<string, Phaser.Input.Keyboard.Key> | null>(null);
 
   // Estados para la carga del juego
   const [isLoading, setIsLoading] = useState(true);
@@ -61,24 +68,23 @@ export const Game = ({ user }: GameProps) => {
     if (!gameContainer.current) return;
 
     // 1. Crear/actualizar jugadores existentes
+    const now = Date.now();
     Object.entries(players).forEach(([id, playerData]) => {
       // Guardar posiciones previas y nuevas para **interpolación temporal**
-      if (id !== userId.toString()) {
+      if (id !== userIdString.current) {
         if (!remotePlayerStates.current[id]) {
           remotePlayerStates.current[id] = {
             prev: { x: playerData?.position.x, y: playerData?.position.y },
             next: { x: playerData?.position.x, y: playerData?.position.y },
-            lastUpdate: Date.now(),
+            lastUpdate: now,
           };
         } else {
-          remotePlayerStates.current[id].prev = {
-            ...remotePlayerStates.current[id].next,
-          };
-          remotePlayerStates.current[id].next = {
-            x: playerData?.position.x,
-            y: playerData?.position.y,
-          };
-          remotePlayerStates.current[id].lastUpdate = Date.now();
+          const state = remotePlayerStates.current[id];
+          state.prev.x = state.next.x;
+          state.prev.y = state.next.y;
+          state.next.x = playerData?.position.x;
+          state.next.y = playerData?.position.y;
+          state.lastUpdate = now;
         }
       }
       if (!playersRefs.current[id]) {
@@ -96,7 +102,7 @@ export const Game = ({ user }: GameProps) => {
         newPlayer?.setFixedRotation();
         newPlayer?.setOrigin(0.5, 0.6);
         // CAMBIO: Hacer que los jugadores remotos sean sensores
-        if (id !== userId.toString()) {
+        if (id !== userIdString.current) {
           newPlayer?.setSensor(true); // CAMBIO: Jugador remoto no colisiona
         }
 
@@ -118,7 +124,7 @@ export const Game = ({ user }: GameProps) => {
         const existingPlayer = playersRefs.current[id];
 
         if (existingPlayer.anims?.currentAnim?.key !== playerData.animation) {
-          existingPlayer.anims.play(playerData.animation || "turn", true);
+          existingPlayer.anims.play(playerData.animation || "idle-down", true);
         }
       }
     });
@@ -147,6 +153,10 @@ export const Game = ({ user }: GameProps) => {
         playersUsernames.current[playerId].destroy();
         delete playersUsernames.current[playerId];
       }
+
+      // Limpiar estado de interpolación
+      delete remotePlayerStates.current[playerId];
+      delete remotePlayersDepth.current[playerId];
     });
   }, [players, userId]);
 
@@ -209,30 +219,15 @@ export const Game = ({ user }: GameProps) => {
         map.createLayer("carpets", tilesets, 0, 0);
         const chairsLayer = map.createLayer("chairs", tilesets, 0, 0)!;
         const wallsLayer = map.createLayer("walls", tilesets, 0, 0)!;
-        const lowerFlowersLayer = map.createLayer(
-          "lowerFlowers",
-          tilesets,
-          0,
-          0
-        )!;
+        const lowerFlowersLayer = map.createLayer("lowerFlowers", tilesets, 0, 0)!;
         const furnitureLayer = map.createLayer("furniture", tilesets, 0, 0)!;
         const tablesLayer = map.createLayer("tables", tilesets, 0, 0)!;
-        const upperFlowersLayer = map.createLayer(
-          "upperFlowers",
-          tilesets,
-          0,
-          0
-        )!;
+        const upperFlowersLayer = map.createLayer("upperFlowers", tilesets, 0, 0)!;
         map.createLayer("ornaments", tilesets, 0, 0);
         const doorsLayer = map.createLayer("doors", tilesets, 0, 0)!;
         const othersLayer = map.createLayer("others", tilesets, 0, 0)!;
         const upperPcLayer = map.createLayer("upperPc", tilesets, 0, 0)!;
-        const abovePlayerLayer = map.createLayer(
-          "Above Player",
-          tilesets,
-          0,
-          0
-        );
+        const abovePlayerLayer = map.createLayer("Above Player", tilesets, 0, 0);
 
         chairsLayer?.setCollisionByProperty({ collider: true });
         wallsLayer?.setCollisionByProperty({ collider: true });
@@ -253,13 +248,25 @@ export const Game = ({ user }: GameProps) => {
 
         player.current.setBody({
           type: "rectangle",
-          width: 28, // 32
-          height: 45, // 48
+          width: 28,
+          height: 45,
         });
         player.current.setFixedRotation();
         player.current.setOrigin(0.5, 0.6);
-        player.current.setBounce(0); // CAMBIO: Sin rebote para el jugador local
-        player.current.setFriction(0.1, 0.1, 0.1); // CAMBIO: Baja fricción para el jugador local
+
+        // Configuración de físicas optimizada para movimiento fluido
+        player.current.setBounce(0);
+        player.current.setFriction(0);
+        player.current.setFrictionAir(0);
+        player.current.setMass(1);
+
+        // Configurar body para evitar rebotes y movimiento fluido
+        if (player.current.body) {
+          const body = player.current.body as MatterJS.BodyType;
+          body.inertia = Infinity;
+          body.sleepThreshold = -1; // Evita micro-rebotes
+          body.slop = 0.05; // Tolerancia en colisiones para movimiento más suave
+        }
 
         playerUsername.current = this.add.text(
           player.current.x,
@@ -275,7 +282,7 @@ export const Game = ({ user }: GameProps) => {
         playerUsername.current.setOrigin(0.5, 0.5);
 
         // Establecer una profundidad alta para las capas que deben estar siempre por encima
-        const topLayersDepth = 10000;
+        const topLayersDepth = 2000;
         upperFlowersLayer.setDepth(topLayersDepth);
         upperPcLayer.setDepth(topLayersDepth);
         abovePlayerLayer?.setDepth(topLayersDepth);
@@ -286,66 +293,86 @@ export const Game = ({ user }: GameProps) => {
         camera.startFollow(player.current, true, 0.1, 0.1);
         camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
-        // Animaciones del jugador
-        this.anims.create({
-          key: "up",
-          frames: this.anims.generateFrameNumbers("sofia", {
-            start: 0,
-            end: 8,
-          }),
-          frameRate: 10,
-          repeat: -1,
-        });
-        this.anims.create({
-          key: "left",
-          frames: this.anims.generateFrameNumbers("sofia", {
-            start: 9,
-            end: 17,
-          }),
-          frameRate: 10,
-          repeat: -1,
-        });
-        this.anims.create({
-          key: "down",
-          frames: this.anims.generateFrameNumbers("sofia", {
-            start: 18,
-            end: 26,
-          }),
-          frameRate: 10,
-          repeat: -1,
+        // Animaciones del jugador - Configuración optimizada
+        const animationsConfig = [
+          { key: "up", start: 0, end: 8, idleFrame: 5 },
+          { key: "left", start: 9, end: 17, idleFrame: 9 },
+          { key: "down", start: 18, end: 26, idleFrame: 19 },
+          { key: "right", start: 27, end: 35, idleFrame: 27 },
+        ];
+
+        animationsConfig.forEach(({ key, start, end, idleFrame }) => {
+          // Animación de movimiento
+          this.anims.create({
+            key,
+            frames: this.anims.generateFrameNumbers("sofia", { start, end }),
+            frameRate: 10,
+            repeat: -1,
+          });
+
+          // Animación idle
+          this.anims.create({
+            key: `idle-${key}`,
+            frames: [{ key: "sofia", frame: idleFrame }],
+            frameRate: 10,
+            repeat: -1,
+          });
         });
 
-        this.anims.create({
-          key: "right",
-          frames: this.anims.generateFrameNumbers("sofia", {
-            start: 27,
-            end: 35,
-          }),
-          frameRate: 10,
-          repeat: -1,
-        });
-
-        this.anims.create({
-          key: "turn",
-          frames: [{ key: "sofia", frame: 19 }],
-          frameRate: 10,
-          repeat: -1,
-        });
+        // Crear controles del teclado una sola vez
+        cursorsRef.current = this.input.keyboard?.createCursorKeys() || null;
+        wasdKeysRef.current = this.input.keyboard?.addKeys({
+          W: Phaser.Input.Keyboard.KeyCodes.W,
+          A: Phaser.Input.Keyboard.KeyCodes.A,
+          S: Phaser.Input.Keyboard.KeyCodes.S,
+          D: Phaser.Input.Keyboard.KeyCodes.D,
+        }) as unknown as Record<string, Phaser.Input.Keyboard.Key> | null;
 
         // Finalizar la carga
         setLoadingProgress(100);
 
         // Ocultar pantalla de carga después de una breve pausa
-        setTimeout(() => {
+        loadingTimeoutRef.current = setTimeout(() => {
           setIsLoading(false);
-        }, 800);
+          loadingTimeoutRef.current = null;
+        }, 200);
       }
+
+      // Función auxiliar para interpolar jugadores remotos (evita duplicación)
+      const interpolateRemotePlayers = () => {
+        const INTERPOLATION_DURATION = 50;
+        const now = Date.now();
+
+        for (const id in playersRefs.current) {
+          if (id === userIdString.current) continue;
+
+          const sprite = playersRefs.current[id];
+          const state = remotePlayerStates.current[id];
+
+          if (sprite && state) {
+            const t = Math.min((now - state.lastUpdate) / INTERPOLATION_DURATION, 1);
+
+            // Interpolación manual (más eficiente que Phaser.Math.Interpolation.Linear)
+            sprite.x = state.prev.x + (state.next.x - state.prev.x) * t;
+            sprite.y = state.prev.y + (state.next.y - state.prev.y) * t;
+
+            playersUsernames.current[id].setPosition(sprite.x, sprite.y - 40);
+
+            // Optimizar depth: solo actualizar si cambia significativamente
+            const newDepth = Math.floor(sprite.y);
+            if (Math.abs((remotePlayersDepth.current[id] || 0) - newDepth) >= 1) {
+              sprite.setDepth(newDepth);
+              remotePlayersDepth.current[id] = newDepth;
+            }
+          }
+        }
+      };
 
       function update(this: Phaser.Scene) {
         // Verifica si un input está enfocado
         if (isInputFocusedRef.current) {
           player.current?.setVelocity(0, 0);
-          player.current?.anims.play("turn", true);
+          player.current?.anims.play(`idle-${lastFacing.current}` as const, true);
 
           // Actualizar posición del nombre de usuario del jugador
           playerUsername.current?.setPosition(
@@ -358,58 +385,49 @@ export const Game = ({ user }: GameProps) => {
           }
 
           // Continuar manejando la interpolación para otros jugadores
-          const INTERPOLATION_DURATION = 50;
-          Object.entries(playersRefs.current).forEach(([id, sprite]) => {
-            if (id !== userId.toString()) {
-              const state = remotePlayerStates.current[id];
-              if (sprite && state) {
-                const now = Date.now();
-                const t = Math.min(
-                  (now - state.lastUpdate) / INTERPOLATION_DURATION,
-                  1
-                );
-                sprite.x = Phaser.Math.Interpolation.Linear(
-                  [state.prev.x, state.next.x],
-                  t
-                );
-                sprite.y = Phaser.Math.Interpolation.Linear(
-                  [state.prev.y, state.next.y],
-                  t
-                );
-                playersUsernames.current[id].setPosition(
-                  sprite.x,
-                  sprite.y - 40
-                );
-                sprite.setDepth(sprite.y);
-              }
-            }
-          });
+          interpolateRemotePlayers();
           return; // Salir temprano, no procesar controles del juego
         }
 
         // Controles del juego cuando no hay input activo
-        const cursors = this.input.keyboard?.createCursorKeys();
+        const cursors = cursorsRef.current;
+        const keys = wasdKeysRef.current;
 
         const speed = 2.7;
         let velocityX = 0;
         let velocityY = 0;
 
-        if (cursors?.left.isDown) {
-          velocityX = -speed;
-          player.current?.anims.play("left", true);
-        } else if (cursors?.right.isDown) {
-          velocityX = speed;
-          player.current?.anims.play("right", true);
-        } else if (cursors?.down.isDown) {
-          velocityY = speed;
-          player.current?.anims.play("down", true);
-        } else if (cursors?.up.isDown) {
-          velocityY = -speed;
-          player.current?.anims.play("up", true);
-        } else {
-          velocityX = 0;
-          velocityY = 0;
-          player.current?.anims.play("turn", true);
+        // Permitir comprobaciones independientes por eje para habilitar el movimiento diagonal.
+        if (cursors || keys) {
+          if (cursors?.left.isDown || keys?.A?.isDown) velocityX = -speed;
+          if (cursors?.right.isDown || keys?.D?.isDown) velocityX = speed;
+          if (cursors?.down.isDown || keys?.S?.isDown) velocityY = speed;
+          if (cursors?.up.isDown || keys?.W?.isDown) velocityY = -speed;
+
+          // Normalizar velocidad diagonal solo si hay movimiento en ambos ejes
+          if (velocityX !== 0 && velocityY !== 0) {
+            const mag = Math.hypot(velocityX, velocityY);
+            if (mag > speed) {
+              const scale = speed / mag;
+              velocityX *= scale;
+              velocityY *= scale;
+            }
+          }
+
+          // Elegir animación: idle si no hay movimiento, o según dirección dominante
+          if (velocityX === 0 && velocityY === 0) {
+            player.current?.anims.play(`idle-${lastFacing.current}` as const, true);
+          } else {
+            const absVelX = Math.abs(velocityX);
+            const absVelY = Math.abs(velocityY);
+
+            const direction = absVelX >= absVelY
+              ? velocityX < 0 ? "left" : "right"
+              : velocityY < 0 ? "up" : "down";
+
+            lastFacing.current = direction;
+            player.current?.anims.play(direction, true);
+          }
         }
 
         player.current?.setVelocity(velocityX, velocityY);
@@ -418,41 +436,28 @@ export const Game = ({ user }: GameProps) => {
           (player.current?.y || 0) - 40
         );
 
+        // Optimizar actualización de depth: solo actualizar si cambia >= 1 pixel
         if (player.current) {
-          player.current.setDepth(player.current.y);
+          const newDepth = Math.floor(player.current.y);
+          if (Math.abs(lastPlayerDepth.current - newDepth) >= 1) {
+            player.current.setDepth(newDepth);
+            lastPlayerDepth.current = newDepth;
+          }
         }
 
         // INTERPOLACIÓN TEMPORAL PARA JUGADORES REMOTOS
-        const INTERPOLATION_DURATION = 50; // ms, igual al throttle del servidor
-        Object.entries(playersRefs.current).forEach(([id, sprite]) => {
-          if (id !== userId.toString()) {
-            const state = remotePlayerStates.current[id];
-            if (sprite && state) {
-              // Verifica que sprite y state existan
-              const now = Date.now();
-              const t = Math.min(
-                (now - state.lastUpdate) / INTERPOLATION_DURATION,
-                1
-              );
-              sprite.x = Phaser.Math.Interpolation.Linear(
-                [state.prev.x, state.next.x],
-                t
-              );
-              sprite.y = Phaser.Math.Interpolation.Linear(
-                [state.prev.y, state.next.y],
-                t
-              );
-              playersUsernames.current[id].setPosition(sprite.x, sprite.y - 40);
-              sprite.setDepth(sprite.y);
-            }
-          }
-        });
+        interpolateRemotePlayers();
 
-        if (
-          player.current?.x === playersData.current[userId]?.position.x &&
-          player.current?.y === playersData.current[userId]?.position.y
-        ) {
-          return;
+        // Optimizar comparación de posición con threshold
+        const currentPlayer = playersData.current[userIdString.current];
+        if (currentPlayer && player.current) {
+          const threshold = 0.5;
+          const dx = Math.abs(player.current.x - currentPlayer.position.x);
+          const dy = Math.abs(player.current.y - currentPlayer.position.y);
+
+          if (dx < threshold && dy < threshold) {
+            return;
+          }
         }
         handlePlayerMove({
           position: {
@@ -477,6 +482,7 @@ export const Game = ({ user }: GameProps) => {
           matter: {
             gravity: { y: 0, x: 0 },
             debug: false,
+            enableSleeping: false, // Mantiene todos los cuerpos(Jugadores) activos todo el tiempo, necesario para respuesta inmediata en colisiones
           },
         },
         parent: "game-container",
@@ -490,9 +496,9 @@ export const Game = ({ user }: GameProps) => {
           keyboard: true,
         },
         scene: {
-          preload: preload,
-          create: create,
-          update: update,
+          preload,
+          create,
+          update,
         },
 
         render: {
@@ -511,6 +517,11 @@ export const Game = ({ user }: GameProps) => {
 
     return () => {
       clearTimeout(timer);
+      // Limpiar timeout de carga si el componente se desmonta
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
       if (gameContainer.current) {
         gameContainer.current.destroy(true);
         gameContainer.current = null;
@@ -576,14 +587,14 @@ export const Game = ({ user }: GameProps) => {
   }, []);
 
   return (
-    <div className="relative min-h-dvh w-full">
+    <div className="relative h-full w-full">
       {/* Pantalla de carga */}
       {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
 
       {/* Container del juego */}
       <div
         id="game-container"
-        className="min-h-dvh w-full"
+        className="h-full w-full"
         style={{
           position: "relative",
           zIndex: isLoading ? -1 : 1,
