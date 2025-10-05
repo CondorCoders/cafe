@@ -2,8 +2,30 @@ import { LoginButton } from "@/components/login-button";
 import { Navbar } from "@/components/navbar";
 import { buttonVariants } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { Clock, MessageCircle, Music } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+
+const features = [
+  {
+    title: "Chatea con otros devs",
+    description:
+      "Conéctate y colabora con otros desarrolladores en tiempo real.",
+    icon: MessageCircle,
+  },
+  {
+    title: "Escucha música",
+    description:
+      "Disfruta de una selección curada de música para mantenerte enfocado.",
+    icon: Music,
+  },
+  {
+    title: "Usa un Pomodoro",
+    description:
+      "Mejora tu productividad con nuestra herramienta integrada de Pomodoro.",
+    icon: Clock,
+  },
+];
 
 export default async function Home() {
   const supabase = await createClient();
@@ -21,7 +43,7 @@ export default async function Home() {
   return (
     <div className="font-[family-name:var(--font-geist-sans)]">
       <Navbar user={userId ? { id: userId, ...profile } : null} />
-      <main className="flex flex-col gap-[32px]">
+      <main className="flex flex-col">
         <section className="w-full min-h-screen mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="flex flex-col ml-auto justify-center max-w-2xl gap-6 p-4">
             <h1 className="text-6xl text-left font-jersey leading-[0.8]">
@@ -65,6 +87,25 @@ export default async function Home() {
                 />
               </div>
             </div>
+          </div>
+        </section>
+        <section className="bg-purple/5 px-4 py-16">
+          <div className="w-full max-w-7xl mx-auto">
+            <h2 className="font-jersey text-5xl tracking-wide">
+              ¿Qué puedes hacer aquí?
+            </h2>
+            <ul className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {features.map((feature) => (
+                <li
+                  key={feature.title}
+                  className="mt-4 text-2xl shadow-lg rounded-2xl p-4"
+                >
+                  <feature.icon className="size-6 mb-2 text-purple" />
+                  <h3 className="font-bold">{feature.title}</h3>
+                  <p className="text-base">{feature.description}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
       </main>
