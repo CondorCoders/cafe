@@ -1,6 +1,13 @@
 import { LoginButton } from "@/components/login-button";
 import { Navbar } from "@/components/navbar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { contribuyentes } from "@/data/contribuyentes";
 import { createClient } from "@/lib/supabase/server";
 import { Clock, MessageCircle, Music } from "lucide-react";
 import Image from "next/image";
@@ -43,7 +50,7 @@ export default async function Home() {
   return (
     <div className="font-[family-name:var(--font-geist-sans)]">
       <Navbar user={userId ? { id: userId, ...profile } : null} />
-      <main className="flex flex-col">
+      <main className="flex flex-col bg-[#EFEFED]">
         <section className="w-full min-h-screen mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="flex flex-col ml-auto justify-center max-w-2xl gap-6 p-4">
             <h1 className="text-6xl text-left font-jersey leading-[0.8]">
@@ -108,8 +115,39 @@ export default async function Home() {
             </ul>
           </div>
         </section>
+        <section>
+          <div className="w-full max-w-7xl mx-auto text-center py-16 px-4">
+            <h2 className="font-jersey text-5xl tracking-wide">
+              Contribuyentes
+            </h2>
+            <div className="w-fit mx-auto items-center justify-center flex flex-row flex-wrap gap-2 hover:gap-7 transition-[gap] px-4 py-10">
+              {contribuyentes.map((contribuyente) => (
+                <div
+                  key={contribuyente.name}
+                  className="flex flex-col items-center *:-ml-7 first:ml-0"
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link href={contribuyente.github} target="_blank">
+                        <Avatar className="size-20 hover:drop-shadow-lg/50 drop-shadow-purple hover:cursor-pointer hover:scale-125 transition-transform">
+                          <AvatarImage src={contribuyente.avatar} />
+                          <AvatarFallback>
+                            {contribuyente.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>{contribuyente.name}</TooltipContent>
+                  </Tooltip>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
-      <footer>Hecho con ❤️ por la comunidad de CondorCoders</footer>
+      <footer className="w-full bg-purple-950 text-white text-center p-4">
+        Hecho con ❤️ por la comunidad de CondorCoders
+      </footer>
     </div>
   );
 }
