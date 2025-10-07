@@ -80,8 +80,17 @@ export const Game = ({ user }: GameProps) => {
           };
         } else {
           const state = remotePlayerStates.current[id];
-          state.prev.x = state.next.x;
-          state.prev.y = state.next.y;
+          
+          const sprite = playersRefs.current[id];
+          if (sprite) {
+            state.prev.x = sprite.x;
+            state.prev.y = sprite.y;
+          } else {
+            // fallback: conservar el comportamiento previo
+            state.prev.x = state.next.x;
+            state.prev.y = state.next.y;
+          }
+
           state.next.x = playerData?.position.x;
           state.next.y = playerData?.position.y;
           state.lastUpdate = now;
@@ -355,6 +364,12 @@ export const Game = ({ user }: GameProps) => {
             // Interpolación manual (más eficiente que Phaser.Math.Interpolation.Linear)
             sprite.x = state.prev.x + (state.next.x - state.prev.x) * t;
             sprite.y = state.prev.y + (state.next.y - state.prev.y) * t;
+
+            // Si completó la interpolación, asegurar posición exacta objetivo
+            if (t >= 1) {
+              sprite.x = state.next.x;
+              sprite.y = state.next.y;
+            }
 
             playersUsernames.current[id].setPosition(sprite.x, sprite.y - 40);
 
