@@ -33,6 +33,13 @@ export const Game = ({ user }: GameProps) => {
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cursorsRef = useRef<Phaser.Types.Input.Keyboard.CursorKeys | null>(null);
   const wasdKeysRef = useRef<Record<string, Phaser.Input.Keyboard.Key> | null>(null);
+  // Control de envío local para evitar spam a Realtime
+  const lastBroadcastRef = useRef(0);
+  const lastSentRef = useRef<{ x: number; y: number; animation?: string }>(
+    { x: 0, y: 0, animation: undefined }
+  );
+  // Intervalo local mínimo entre envíos (ms)
+  const LOCAL_BROADCAST_MS = 150;
 
   // Estados para la carga del juego
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +60,8 @@ export const Game = ({ user }: GameProps) => {
     userId: userId.toString(),
     username: user?.username || "Guest",
     profile_url: user?.profile_url || "default-avatar.png",
-    throttleMs: 50,
+    // Reducción de frecuencia de broadcast a nivel hook
+    throttleMs: 150,
   });
 
   // Referencia para acceder a players en Phaser sin recrear el juego
@@ -349,7 +357,8 @@ export const Game = ({ user }: GameProps) => {
 
       // Función auxiliar para interpolar jugadores remotos (evita duplicación)
       const interpolateRemotePlayers = () => {
-        const INTERPOLATION_DURATION = 50;
+        // Alinear la interpolación con el throttle (~150ms) para suavidad
+        const INTERPOLATION_DURATION = 140;
         const now = Date.now();
 
         for (const id in playersRefs.current) {
@@ -463,29 +472,39 @@ export const Game = ({ user }: GameProps) => {
         // INTERPOLACIÓN TEMPORAL PARA JUGADORES REMOTOS
         interpolateRemotePlayers();
 
-        // Optimizar comparación de posición con threshold
-        const currentPlayer = playersData.current[userIdString.current];
-        if (currentPlayer && player.current) {
-          const threshold = 0.5;
-          const dx = Math.abs(player.current.x - currentPlayer.position.x);
-          const dy = Math.abs(player.current.y - currentPlayer.position.y);
+        // Gate local de rate limiting + cambio de animación
+        const nowTs = performance.now();
+        const canSendByTime = nowTs - lastBroadcastRef.current >= LOCAL_BROADCAST_MS;
+        const currentAnimKey = player.current?.anims.currentAnim?.key;
+        const hasAnimChanged = currentAnimKey !== lastSentRef.current.animation;
 
-          if (dx < threshold && dy < threshold) {
-            return;
-          }
+        // Detectar si está en movimiento (para decidir envío periódico)
+        const isMoving = Math.abs(velocityX) > 0 || Math.abs(velocityY) > 0;
+
+        // Enviar si:
+        // - Cambió la animación (ej. mover->idle o idle->mover)
+        // - O está moviéndose y ya pasó el intervalo local
+        if (player.current && (hasAnimChanged || (isMoving && canSendByTime))) {
+          handlePlayerMove({
+            position: {
+              x: player.current.x,
+              y: player.current.y,
+            },
+            user: {
+              id: userId.toString(),
+              name: user?.username || "Guest",
+              profile_url: user?.profile_url || "default-avatar.png",
+            },
+            animation: currentAnimKey,
+          });
+
+          lastBroadcastRef.current = nowTs;
+          lastSentRef.current = {
+            x: player.current.x,
+            y: player.current.y,
+            animation: currentAnimKey,
+          };
         }
-        handlePlayerMove({
-          position: {
-            x: player.current?.x || 0,
-            y: player.current?.y || 0,
-          },
-          user: {
-            id: userId.toString(),
-            name: user?.username || "Guest",
-            profile_url: user?.profile_url || "default-avatar.png",
-          },
-          animation: player.current?.anims.currentAnim?.key,
-        });
       }
 
       const config: Phaser.Types.Core.GameConfig = {
@@ -542,7 +561,7 @@ export const Game = ({ user }: GameProps) => {
         gameContainer.current = null;
       }
     };
-  }, [handlePlayerMove, user?.username, userId]);
+  }, [handlePlayerMove, user?.username, user?.profile_url, userId]);
 
   // Listeners para manejar el estado de input focus
   useEffect(() => {
