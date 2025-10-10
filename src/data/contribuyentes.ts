@@ -5,9 +5,9 @@ export const contribuyentes = [
     avatar: "https://avatars.githubusercontent.com/u/123217980?v=4",
   },
   {
-    name: "El Santana",
-    github: "https://github.com/condorcoders",
-    avatar: "https://avatars.githubusercontent.com/u/123217980?v=4",
+    name: "ElSantana",
+    github: "https://github.com/ElSantanax",
+    avatar: "https://avatars.githubusercontent.com/u/75258412?v=4",
   },
   {
     name: "EduardoMC",
