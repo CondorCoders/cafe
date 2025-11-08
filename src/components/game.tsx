@@ -412,6 +412,20 @@ export const Game = ({ user }: GameProps) => {
           }
         );
 
+        // Ver si la animacion se detuvo
+        player.current.on(
+          "animationcomplete",
+          (animation: Phaser.Animations.Animation) => {
+            if (animation.key === emoteRef.current) {
+              emoteRef.current = null;
+              player.current?.anims.play(
+                `idle-${lastFacing.current}` as const,
+                true
+              );
+            }
+          }
+        );
+
         // Crear controles del teclado una sola vez
         cursorsRef.current = this.input.keyboard?.createCursorKeys() || null;
         wasdKeysRef.current = this.input.keyboard?.addKeys({
