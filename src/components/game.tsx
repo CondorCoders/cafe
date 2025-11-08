@@ -46,7 +46,8 @@ export const Game = ({ user }: GameProps) => {
     y: 0,
     animation: undefined,
   });
-  const userAvatar = user?.avatar || "sofia";
+  const userAvatarRef = useRef<string>(user?.avatar || "sofia");
+  const emoteRef = useRef<string | null>(null);
   // Intervalo local mínimo entre envíos (ms)
   const LOCAL_BROADCAST_MS = 150;
 
@@ -256,7 +257,7 @@ export const Game = ({ user }: GameProps) => {
         Object.keys(animationsConfig).forEach((animationKey) => {
           this.load.spritesheet(
             animationKey,
-            `assets/characters/${userAvatar}/${animationKey}.png`,
+            `assets/characters/${userAvatarRef.current}/${animationKey}.png`,
             {
               frameWidth: 64,
               frameHeight: 64,
@@ -382,14 +383,19 @@ export const Game = ({ user }: GameProps) => {
 
         Object.entries(animationsConfig).forEach(
           ([animationKey, animations]) => {
-            animations.forEach(({ key, start, end, idleFrame }) => {
+            animations.forEach((animation) => {
+              const { key, start, end } = animation;
+              const idleFrame =
+                "idleFrame" in animation ? animation.idleFrame : undefined;
+
+              const repeat = "repeat" in animation ? animation.repeat : -1;
               if (idleFrame) {
                 // Animación idle
                 this.anims.create({
                   key,
                   frames: [{ key: animationKey, frame: idleFrame }],
                   frameRate: 10,
-                  repeat: -1,
+                  repeat,
                 });
               }
               // Animación de movimiento
@@ -400,7 +406,7 @@ export const Game = ({ user }: GameProps) => {
                   end,
                 }),
                 frameRate: 10,
-                repeat: -1,
+                repeat,
               });
             });
           }
@@ -426,6 +432,15 @@ export const Game = ({ user }: GameProps) => {
       }
 
       function update(this: Phaser.Scene) {
+        if (emoteRef.current) {
+          player.current?.setVelocity(0, 0);
+          const currentAnim = player.current?.anims.currentAnim?.key;
+
+          if (currentAnim !== emoteRef.current) {
+            player.current?.anims.play(emoteRef.current, true);
+          }
+          return;
+        }
         // Verifica si un input está enfocado
         if (isInputFocusedRef.current) {
           player.current?.setVelocity(0, 0);
