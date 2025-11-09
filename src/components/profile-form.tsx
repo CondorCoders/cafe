@@ -38,13 +38,18 @@ export interface ProfileFormProps {
 const avatars = [
   {
     id: "1",
-    name: "sofia",
+    name: "Sofia",
     image: "/assets/characters-preview/sofia.png",
   },
   {
     id: "2",
-    name: "sofia2",
+    name: "Sofia2",
     image: "/assets/characters-preview/sofia.png",
+  },
+  {
+    id: "3",
+    name: "Luis",
+    image: "/assets/characters-preview/Luis.png",
   },
 ];
 
