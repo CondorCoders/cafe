@@ -49,7 +49,7 @@ const avatars = [
   {
     id: "3",
     name: "Luis",
-    image: "/assets/characters-preview/Luis.png",
+    image: "/assets/characters-preview/luis.png",
   },
 ];
 
