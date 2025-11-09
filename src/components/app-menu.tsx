@@ -85,7 +85,9 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
           <DropdownMenuTrigger className="flex hover:bg-indigo-300 rounded-md hover:text-indigo-950 items-center justify-center gap-2 hover:cursor-pointer px-1">
             <Avatar className="size-10">
               <AvatarImage src={user.profile_url} />
-              <AvatarFallback>{user.full_name.charAt(0)}</AvatarFallback>
+              <AvatarFallback>
+                {(user?.full_name ?? user?.username ?? "?").charAt(0)}
+              </AvatarFallback>
             </Avatar>
             {user.full_name}
             <ChevronUp className="ml-auto" />
