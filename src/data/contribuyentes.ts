@@ -29,4 +29,10 @@ export const contribuyentes = [
     github: "https://github.com/condorcoders",
     avatar: "https://avatars.githubusercontent.com/u/123217980?v=4",
   },
+
+  {
+    name: "Epiph0nE",
+    github: "https://github.com/Epiph0nE",
+    avatar: "https://avatars.githubusercontent.com/u/167962271?v=4",
+  },
 ];
