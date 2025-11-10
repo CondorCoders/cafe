@@ -475,6 +475,7 @@ export const Game = ({ user }: GameProps) => {
                 profile_url: user?.profile_url || "default-avatar.png",
               },
               animation: currentAnim,
+              emote: emoteRef.current,
             });
             player.current?.anims.play(emoteRef.current, true);
           }
