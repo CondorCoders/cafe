@@ -7,6 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { LoadingScreen } from "./loading-screen";
 import { animationsConfig } from "@/data/animations";
+import { useEmote } from "@/context/emote-context";
 
 interface UserProfile {
   id: string;
@@ -46,7 +47,8 @@ export const Game = ({ user }: GameProps) => {
     y: 0,
     animation: undefined,
   });
-  const userAvatar = user?.avatar || "sofia";
+  const userAvatarRef = useRef<string>(user?.avatar || "sofia");
+  const emoteRef = useRef<string | null>(null);
   // Intervalo local mínimo entre envíos (ms)
   const LOCAL_BROADCAST_MS = 150;
 
@@ -73,6 +75,8 @@ export const Game = ({ user }: GameProps) => {
     throttleMs: 150,
   });
 
+  const { emote, setEmote } = useEmote();
+
   // Referencia para acceder a players en Phaser sin recrear el juego
   const playersData = useRef(players);
 
@@ -80,6 +84,15 @@ export const Game = ({ user }: GameProps) => {
   useEffect(() => {
     playersData.current = players;
   }, [players]);
+
+  useEffect(() => {
+    if (emote) {
+      console.log(emote);
+      emoteRef.current = `${emote}-${lastFacing.current}`;
+    } else {
+      emoteRef.current = null;
+    }
+  }, [emote]);
 
   useEffect(() => {
     if (!gameContainer.current) return;
@@ -152,6 +165,20 @@ export const Game = ({ user }: GameProps) => {
         if (existingPlayer.anims?.currentAnim?.key !== playerData.animation) {
           existingPlayer.anims.play(playerData.animation || "idle-down", true);
         }
+      }
+
+      if (playerData?.emote) {
+        const existingPlayer = playersRefs.current[id];
+        existingPlayer.anims.play(playerData.emote || "idle-down", true);
+
+        existingPlayer.on(
+          "animationcomplete",
+          (animation: Phaser.Animations.Animation) => {
+            if (animation.key === playerData.emote) {
+              existingPlayer?.anims.play(`idle-down` as const, true);
+            }
+          }
+        );
       }
     });
 
@@ -256,7 +283,7 @@ export const Game = ({ user }: GameProps) => {
         Object.keys(animationsConfig).forEach((animationKey) => {
           this.load.spritesheet(
             animationKey,
-            `assets/characters/${userAvatar}/${animationKey}.png`,
+            `assets/characters/${userAvatarRef.current}/${animationKey}.png`,
             {
               frameWidth: 64,
               frameHeight: 64,
@@ -382,14 +409,19 @@ export const Game = ({ user }: GameProps) => {
 
         Object.entries(animationsConfig).forEach(
           ([animationKey, animations]) => {
-            animations.forEach(({ key, start, end, idleFrame }) => {
+            animations.forEach((animation) => {
+              const { key, start, end } = animation;
+              const idleFrame =
+                "idleFrame" in animation ? animation.idleFrame : undefined;
+
+              const repeat = "repeat" in animation ? animation.repeat : -1;
               if (idleFrame) {
                 // Animación idle
                 this.anims.create({
                   key,
                   frames: [{ key: animationKey, frame: idleFrame }],
                   frameRate: 10,
-                  repeat: -1,
+                  repeat,
                 });
               }
               // Animación de movimiento
@@ -400,9 +432,24 @@ export const Game = ({ user }: GameProps) => {
                   end,
                 }),
                 frameRate: 10,
-                repeat: -1,
+                repeat,
               });
             });
+          }
+        );
+
+        // Ver si la animacion se detuvo
+        player.current.on(
+          "animationcomplete",
+          (animation: Phaser.Animations.Animation) => {
+            if (animation.key === emoteRef.current) {
+              emoteRef.current = null;
+              setEmote(null);
+              player.current?.anims.play(
+                `idle-${lastFacing.current}` as const,
+                true
+              );
+            }
           }
         );
 
@@ -426,6 +473,28 @@ export const Game = ({ user }: GameProps) => {
       }
 
       function update(this: Phaser.Scene) {
+        if (emoteRef.current && player.current) {
+          player.current?.setVelocity(0, 0);
+          const currentAnim = player.current?.anims.currentAnim?.key;
+
+          if (currentAnim !== emoteRef.current) {
+            handlePlayerMove({
+              position: {
+                x: player.current.x,
+                y: player.current.y,
+              },
+              user: {
+                id: userId.toString(),
+                name: user?.username || "Guest",
+                profile_url: user?.profile_url || "default-avatar.png",
+              },
+              animation: currentAnim,
+              emote: emoteRef.current,
+            });
+            player.current?.anims.play(emoteRef.current, true);
+          }
+          return;
+        }
         // Verifica si un input está enfocado
         if (isInputFocusedRef.current) {
           player.current?.setVelocity(0, 0);
