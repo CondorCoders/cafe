@@ -459,11 +459,23 @@ export const Game = ({ user }: GameProps) => {
       }
 
       function update(this: Phaser.Scene) {
-        if (emoteRef.current) {
+        if (emoteRef.current && player.current) {
           player.current?.setVelocity(0, 0);
           const currentAnim = player.current?.anims.currentAnim?.key;
 
           if (currentAnim !== emoteRef.current) {
+            handlePlayerMove({
+              position: {
+                x: player.current.x,
+                y: player.current.y,
+              },
+              user: {
+                id: userId.toString(),
+                name: user?.username || "Guest",
+                profile_url: user?.profile_url || "default-avatar.png",
+              },
+              animation: currentAnim,
+            });
             player.current?.anims.play(emoteRef.current, true);
           }
           return;

@@ -63,6 +63,7 @@ interface Player {
     profile_url?: string;
   };
   animation?: string;
+  emote?: string | null;
   color?: string;
 }
 
@@ -113,7 +114,7 @@ export const useRealtimePlayers = ({
   // Función que prepara y envía los datos del movimiento del jugador
   const callback = useCallback(
     (event: Player) => {
-      const { position, user, animation } = event;
+      const { position, user, animation, emote } = event;
 
       // Construye el payload con toda la información del jugador
       const payload: PlayerEventPayload = {
@@ -127,6 +128,7 @@ export const useRealtimePlayers = ({
           profile_url: user.profile_url || profile_url,
         },
         animation: animation,
+        emote: emote,
         timestamp: new Date().getTime(), // Marca de tiempo para sincronización
       };
 
@@ -219,6 +221,7 @@ export const useRealtimePlayers = ({
                 profile_url: presence.profile_url || "default-avatar.png",
               },
               animation: "turn",
+              emote: null,
               timestamp: new Date().getTime(),
             },
           }));
