@@ -1,5 +1,6 @@
 import { AppMenu } from "@/components/app-menu";
 import { Game } from "@/components/game";
+import { EmoteProvider } from "@/context/emote-context";
 import { OnlineUsersProvider } from "@/context/online-users-context";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -25,20 +26,22 @@ export default async function CafePage() {
 
   return (
     <OnlineUsersProvider>
-      <div className="relative w-full h-dvh overflow-hidden">
-        <div className="w-full h-full">
-          <AppMenu user={profile} />
-          <main className="w-full h-full">
-            <Game
-              user={{
-                id: userId || "",
-                username: profile?.username || "Guest",
-                profile_url: profile?.profile_url || "default-avatar.png",
-              }}
-            />
-          </main>
+      <EmoteProvider>
+        <div className="relative w-full h-dvh overflow-hidden">
+          <div className="w-full h-full">
+            <AppMenu user={profile} />
+            <main className="w-full h-full">
+              <Game
+                user={{
+                  id: userId || "",
+                  username: profile?.username || "Guest",
+                  profile_url: profile?.profile_url || "default-avatar.png",
+                }}
+              />
+            </main>
+          </div>
         </div>
-      </div>
+      </EmoteProvider>
     </OnlineUsersProvider>
   );
 }

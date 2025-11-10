@@ -7,6 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { LoadingScreen } from "./loading-screen";
 import { animationsConfig } from "@/data/animations";
+import { useEmote } from "@/context/emote-context";
 
 interface UserProfile {
   id: string;
@@ -74,6 +75,8 @@ export const Game = ({ user }: GameProps) => {
     throttleMs: 150,
   });
 
+  const { emote, setEmote } = useEmote();
+
   // Referencia para acceder a players en Phaser sin recrear el juego
   const playersData = useRef(players);
 
@@ -81,6 +84,15 @@ export const Game = ({ user }: GameProps) => {
   useEffect(() => {
     playersData.current = players;
   }, [players]);
+
+  useEffect(() => {
+    if (emote) {
+      console.log(emote);
+      emoteRef.current = `${emote}-${lastFacing.current}`;
+    } else {
+      emoteRef.current = null;
+    }
+  }, [emote]);
 
   useEffect(() => {
     if (!gameContainer.current) return;
@@ -418,6 +430,7 @@ export const Game = ({ user }: GameProps) => {
           (animation: Phaser.Animations.Animation) => {
             if (animation.key === emoteRef.current) {
               emoteRef.current = null;
+              setEmote(null);
               player.current?.anims.play(
                 `idle-${lastFacing.current}` as const,
                 true

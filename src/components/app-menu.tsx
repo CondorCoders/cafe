@@ -5,6 +5,7 @@ import {
   MessageCircle,
   Music,
   Shapes,
+  Smile,
   UsersRound,
   X,
 } from "lucide-react";
@@ -24,10 +25,12 @@ import { MusicPlayer } from "./sidebar-features/music-player";
 import { Pomodoro } from "./sidebar-features/pomodoro";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { LogoutButton } from "./logout-button";
+import { Emotes } from "./sidebar-features/emotes";
 
 const menuItems = [
   { id: "online", label: "Online", icon: UsersRound },
   { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "emotes", label: "Emotes", icon: Smile },
 ];
 
 const tools = [
@@ -51,11 +54,9 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
     string | undefined | null
   >();
   const { onlineUsers } = useOnlineUsers();
-
   const numberOfOnlineUsers = Object.keys(onlineUsers).length;
-
   return (
-    <div className="absolute z-50 m-4 bottom-0 left-0 w-96">
+    <div className="absolute z-50 m-4 bottom-0 left-0">
       {activeMenuItem && (
         <div className="bg-indigo-950/90 w-full rounded-2xl mb-1 text-white relative max-h-96">
           <div className="w-full flex items-center px-3 py-1 justify-between border-b-[1px] border-gray-500">
@@ -78,6 +79,7 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
           {activeMenuItem === "chat" && <GeneralChat user={user} />}
           {activeMenuItem === "music" && <MusicPlayer />}
           {activeMenuItem === "pomodoro" && <Pomodoro />}
+          {activeMenuItem === "emotes" && <Emotes />}
         </div>
       )}
       <div className="flex items-center justify-center p-3 py-2 rounded-2xl shadow-lg bg-indigo-950/70 hover:bg-indigo-950/100 transition-colors text-white backdrop-blur-md">
