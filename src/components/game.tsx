@@ -166,6 +166,20 @@ export const Game = ({ user }: GameProps) => {
           existingPlayer.anims.play(playerData.animation || "idle-down", true);
         }
       }
+
+      if (playerData?.emote) {
+        const existingPlayer = playersRefs.current[id];
+        existingPlayer.anims.play(playerData.emote || "idle-down", true);
+
+        existingPlayer.on(
+          "animationcomplete",
+          (animation: Phaser.Animations.Animation) => {
+            if (animation.key === playerData.emote) {
+              existingPlayer?.anims.play(`idle-down` as const, true);
+            }
+          }
+        );
+      }
     });
 
     // 2. Limpiar jugadores desconectados de la escena

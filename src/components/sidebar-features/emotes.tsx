@@ -16,6 +16,7 @@ export const Emotes = () => {
           key={e}
           variant={e === emote ? "secondary" : "outline"}
           onClick={() => setEmote(e)}
+          disabled={e === emote}
         >
           {e}
         </Button>
