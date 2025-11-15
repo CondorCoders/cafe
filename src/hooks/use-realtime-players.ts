@@ -61,6 +61,7 @@ interface Player {
     id: string;
     name: string;
     profile_url?: string;
+    avatar?: string;
   };
   animation?: string;
   emote?: string | null;
@@ -78,6 +79,7 @@ export interface PresenceState {
   username: string;
   online_at: string;
   profile_url?: string;
+  avatar?: string;
 }
 
 export const useRealtimePlayers = ({
@@ -86,12 +88,14 @@ export const useRealtimePlayers = ({
   userId,
   throttleMs,
   profile_url,
+  avatar,
 }: {
   roomName: string;
   userId: string;
   username: string;
   throttleMs: number;
   profile_url: string;
+  avatar?: string;
 }) => {
   // Color único para este usuario (se genera una sola vez)
   const [color] = useState(generateRandomColor());
@@ -126,6 +130,7 @@ export const useRealtimePlayers = ({
           id: user.id || userId,
           name: user.name || username,
           profile_url: user.profile_url || profile_url,
+          avatar: user.avatar || "sofia",
         },
         animation: animation,
         emote: emote,
@@ -219,6 +224,7 @@ export const useRealtimePlayers = ({
                 id: presence.user_id,
                 name: presence.username,
                 profile_url: presence.profile_url || "default-avatar.png",
+                avatar: presence.avatar || "sofia",
               },
               animation: "idle-down",
               emote: null,
@@ -261,6 +267,7 @@ export const useRealtimePlayers = ({
             username: username,
             online_at: new Date().toISOString(),
             profile_url: profile_url,
+            avatar: avatar || "sofia",
           });
         }
       });

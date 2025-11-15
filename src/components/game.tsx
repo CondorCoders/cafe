@@ -71,6 +71,7 @@ export const Game = ({ user }: GameProps) => {
     userId: userId.toString(),
     username: user?.username || "Guest",
     profile_url: user?.profile_url || "default-avatar.png",
+    avatar: user?.avatar || "sofia",
     // Reducción de frecuencia de broadcast a nivel hook
     throttleMs: 150,
   });
@@ -87,7 +88,6 @@ export const Game = ({ user }: GameProps) => {
 
   useEffect(() => {
     if (emote) {
-      console.log(emote);
       emoteRef.current = `${emote}-${lastFacing.current}`;
     } else {
       emoteRef.current = null;
