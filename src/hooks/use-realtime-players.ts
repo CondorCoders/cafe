@@ -220,7 +220,7 @@ export const useRealtimePlayers = ({
                 name: presence.username,
                 profile_url: presence.profile_url || "default-avatar.png",
               },
-              animation: "turn",
+              animation: "idle-down",
               emote: null,
               timestamp: new Date().getTime(),
             },

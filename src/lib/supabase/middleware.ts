@@ -32,13 +32,13 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: You *must* try to retrieve the user on the server-side to 
+  // IMPORTANT: You *must* try to retrieve the user on the server-side to
   // ensure that the session is refreshed properly
 
   try {
     const {
       data: { user },
-      error
+      error,
     } = await supabase.auth.getUser();
 
     // If there's an auth error (like refresh token issues), clear the session
@@ -46,9 +46,9 @@ export async function updateSession(request: NextRequest) {
       console.log("Auth error in middleware:", error.message);
       // Clear any auth cookies to force a fresh login
       const response = NextResponse.next({ request });
-      response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token');
-      response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token.0');
-      response.cookies.delete('sb-kzbxxtphwvzryvchmotb-auth-token.1');
+      response.cookies.delete("sb-kzbxxtphwvzryvchmotb-auth-token");
+      response.cookies.delete("sb-kzbxxtphwvzryvchmotb-auth-token.0");
+      response.cookies.delete("sb-kzbxxtphwvzryvchmotb-auth-token.1");
 
       // COMENTADO: Redireccion a login deshabilitada para pruebas locales
       // If trying to access a protected route, redirect to login
@@ -88,7 +88,7 @@ export async function updateSession(request: NextRequest) {
       if (request.nextUrl.pathname.startsWith("/auth")) {
         // user is logged in, redirect to the home page
         const url = request.nextUrl.clone();
-        url.pathname = "/profile";
+        url.pathname = "/";
         return NextResponse.redirect(url);
       }
     }
