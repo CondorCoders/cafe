@@ -25,7 +25,7 @@ export default async function CafePage() {
   }
 
   return (
-    <OnlineUsersProvider>
+    <OnlineUsersProvider>      
       <EmoteProvider>
         <div className="relative w-full h-dvh overflow-hidden">
           <div className="w-full h-full">
@@ -36,12 +36,13 @@ export default async function CafePage() {
                   id: userId || "",
                   username: profile?.username || "Guest",
                   profile_url: profile?.profile_url || "default-avatar.png",
+                  avatar: profile?.avatar,
                 }}
               />
             </main>
           </div>
         </div>
-      </EmoteProvider>
-    </OnlineUsersProvider>
+      </EmoteProvider>     
+     </OnlineUsersProvider>
   );
 }
