@@ -36,6 +36,7 @@ export default async function CafePage() {
                   id: userId || "",
                   username: profile?.username || "Guest",
                   profile_url: profile?.profile_url || "default-avatar.png",
+                  avatar: profile?.avatar,
                 }}
               />
             </main>

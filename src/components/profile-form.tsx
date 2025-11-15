@@ -46,6 +46,11 @@ const avatars = [
     name: "sofia2",
     image: "/assets/characters-preview/sofia.png",
   },
+  {
+    id: "3",
+    name: "luis",
+    image: "/assets/characters-preview/luis.png",
+  },
 ];
 
 export const ProfileForm = ({ profile }: ProfileFormProps) => {
