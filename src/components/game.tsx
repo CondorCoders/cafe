@@ -28,6 +28,7 @@ export const Game = ({ user }: GameProps) => {
   const playersRefs = useRef<Record<string, Phaser.Physics.Matter.Sprite>>({});
   const playersUsernames = useRef<Record<string, Phaser.GameObjects.Text>>({});
   const [userId] = useState(user?.id || generateRandomNumber());
+  const loadedAvatars = useRef<Set<string>>(new Set());
   const isInputFocusedRef = useRef(false);
   const lastFacing = useRef<"up" | "down" | "left" | "right">("down");
   const userIdString = useRef(userId.toString());
@@ -72,6 +73,7 @@ export const Game = ({ user }: GameProps) => {
     username: user?.username || "Guest",
     profile_url: user?.profile_url || "default-avatar.png",
     // Reducción de frecuencia de broadcast a nivel hook
+    avatar: user?.avatar || "sofia",
     throttleMs: 150,
   });
 
@@ -96,10 +98,14 @@ export const Game = ({ user }: GameProps) => {
 
   useEffect(() => {
     if (!gameContainer.current) return;
-
-    // 1. Crear/actualizar jugadores existentes
+ 
     const now = Date.now();
     Object.entries(players).forEach(([id, playerData]) => {
+      // **CORRECCIÓN CLAVE**: Si por alguna razón el playerData es nulo,
+      // saltar esta iteración para evitar el crash.
+      if (!playerData) {
+        return;
+      }
       // Guardar posiciones previas y nuevas para **interpolación temporal**
       if (id !== userIdString.current) {
         if (!remotePlayerStates.current[id]) {
@@ -126,69 +132,142 @@ export const Game = ({ user }: GameProps) => {
           state.lastUpdate = now;
         }
       }
-      if (!playersRefs.current[id] && playerData?.animation) {
-        const newPlayer = scene.current?.matter.add.sprite(
-          playerData?.position.x,
-          playerData?.position.y,
-          playerData?.animation
-        );
-        newPlayer?.setDepth(playerData?.position.y);
-        newPlayer?.setBody({
-          type: "rectangle",
-          width: 32,
-          height: 48,
-        });
-        newPlayer?.setFixedRotation();
-        newPlayer?.setOrigin(0.5, 0.6);
-        // CAMBIO: Hacer que los jugadores remotos sean sensores
-        if (id !== userIdString.current) {
-          newPlayer?.setSensor(true); // CAMBIO: Jugador remoto no colisiona
+
+      const playerAvatar = playerData.user.avatar || "sofia";
+      const animationName = playerData.animation || "idle-down";
+      const spriteAnimKey = `${playerAvatar}-${animationName}`;
+
+      // Si el jugador no existe en la escena...
+      if (!playersRefs.current[id] && scene.current) {
+        // Y si su avatar no ha sido cargado...
+        if (!loadedAvatars.current.has(playerAvatar)) {
+          console.log(`Cargando assets para el avatar: ${playerAvatar}`);
+          // Cargar todas las animaciones para este nuevo avatar
+          Object.keys(animationsConfig).forEach((animConfigKey) => {
+            const newSpriteKey = `${playerAvatar}-${animConfigKey}`;
+            scene.current!.load.spritesheet(
+              newSpriteKey,
+              `assets/characters/${playerAvatar}/${animConfigKey}.png`,
+              { frameWidth: 64, frameHeight: 64 }
+            );
+          });
+
+          // Cuando la carga termine, crea las animaciones y luego el jugador
+          scene.current.load.once("complete", () => {
+            createAvatarAnimations(scene.current!, playerAvatar);
+            createRemotePlayer(id, playerData);
+          });
+          scene.current.load.start(); // Inicia la carga
+          loadedAvatars.current.add(playerAvatar);
+        } else {
+          // Si los assets ya están cargados, crea el jugador directamente
+          createRemotePlayer(id, playerData);
         }
-
-        const label = scene.current?.add.text(
-          newPlayer?.x || playerData?.position.x,
-          (newPlayer?.y || playerData?.position.y) - 40,
-          playerData?.user.name || "Guest",
-          {
-            fontSize: "12px",
-            color: "#ffffff",
-            backgroundColor: "#000000",
-            padding: { x: 5, y: 2 },
-          }
-        );
-        label?.setOrigin(0.5, 0.5);
-        playersUsernames.current[id] = label!;
-        playersRefs.current[id] = newPlayer!;
       } else {
+        // Si el jugador ya existe, actualiza su animación
         const existingPlayer = playersRefs.current[id];
-
-        if (existingPlayer.anims?.currentAnim?.key !== playerData.animation) {
-          existingPlayer.anims.play(playerData.animation || "idle-down", true);
+        if (
+          existingPlayer &&
+          existingPlayer.anims?.currentAnim?.key !== spriteAnimKey
+        ) {
+          existingPlayer.anims.play(spriteAnimKey, true);
         }
       }
 
       if (playerData?.emote) {
         const existingPlayer = playersRefs.current[id];
-        existingPlayer.anims.play(playerData.emote || "idle-down", true);
+        const emoteAnimKey = `${playerAvatar}-${playerData.emote}`;
+        existingPlayer.anims.play(emoteAnimKey, true);
 
         existingPlayer.on(
           "animationcomplete",
           (animation: Phaser.Animations.Animation) => {
-            if (animation.key === playerData.emote) {
-              existingPlayer?.anims.play(`idle-down` as const, true);
+            if (animation.key === emoteAnimKey) {
+              const idleAnimKey = `${playerAvatar}-idle-down`;
+              existingPlayer?.anims.play(idleAnimKey, true);
             }
           }
         );
       }
     });
 
-    // 2. Limpiar jugadores desconectados de la escena
-    const currentPlayerIds = Object.keys(players);
+    // Función para crear un jugador remoto (evita duplicar código)
+    const createRemotePlayer = (
+      id: string,
+      playerData: typeof players[string]
+    ) => {
+      if (!scene.current || playersRefs.current[id]) return; // No crear si ya existe
+
+      const playerAvatar = playerData.user.avatar || "sofia";
+      const animationName = playerData.animation || "idle-down";
+      const spriteAnimKey = `${playerAvatar}-${animationName}`;
+
+      // Clave de la textura base para crear el sprite (ej: 'luis-walk')
+      const baseTextureKey = `${playerAvatar}-walk`;
+
+      const newPlayer = scene.current.matter.add.sprite(
+        playerData.position.x,
+        playerData.position.y,
+        baseTextureKey
+      );
+
+      newPlayer.setDepth(playerData.position.y);
+      newPlayer.setBody({ type: "rectangle", width: 32, height: 48 });
+      newPlayer.setFixedRotation();
+      newPlayer.setOrigin(0.5, 0.6);
+      newPlayer.setSensor(true); // Los jugadores remotos no colisionan
+
+      const label = scene.current.add.text(
+        newPlayer.x,
+        newPlayer.y - 40,
+        playerData.user.name || "Guest",
+        {
+          fontSize: "12px",
+          color: "#ffffff",
+          backgroundColor: "#000000",
+          padding: { x: 5, y: 2 },
+        }
+      );
+      label.setOrigin(0.5, 0.5);
+
+      playersUsernames.current[id] = label;
+      playersRefs.current[id] = newPlayer;
+
+      newPlayer.anims.play(spriteAnimKey, true);
+    };
+
+    // Función para crear las animaciones de un avatar específico
+    const createAvatarAnimations = (
+      scene: Phaser.Scene,
+      avatarName: string
+    ) => {
+      Object.entries(animationsConfig).forEach(([animGroupKey, anims]) => {
+        const spriteKey = `${avatarName}-${animGroupKey}`;
+        anims.forEach((anim) => {
+          const animKey = `${avatarName}-${anim.key}`;
+          if (scene.anims.exists(animKey)) return; // No crear si ya existe
+
+          scene.anims.create({
+            key: animKey,
+            frames: scene.anims.generateFrameNumbers(spriteKey, anim),
+            frameRate: 10,
+            repeat: "repeat" in anim ? anim.repeat : -1,
+          });
+        });
+      });
+    };
+  }, [players, userId, handlePlayerMove]);
+
+  // Hook separado para limpiar jugadores desconectados
+  useEffect(() => {
+    if (!gameContainer.current) return;
+
+    const currentPlayerIds = Object.keys(playersData.current);
     const scenePlayerIds = Object.keys(playersRefs.current);
 
-    // Encontrar jugadores que están en la escena pero ya no en players
+    // Encontrar jugadores que están en la escena pero ya no en el estado
     const playersToRemove = scenePlayerIds.filter(
-      (id) => !currentPlayerIds.includes(id)
+      (id) => !currentPlayerIds.includes(id) && id !== userIdString.current
     );
 
     // Remover jugadores desconectados de la escena
@@ -207,11 +286,13 @@ export const Game = ({ user }: GameProps) => {
         delete playersUsernames.current[playerId];
       }
 
-      // Limpiar estado de interpolación
+      // Limpiar estado de interpolación y profundidad
       delete remotePlayerStates.current[playerId];
       delete remotePlayersDepth.current[playerId];
     });
-  }, [players, userId]);
+    // Usamos playersData.current para tener la versión más fresca sin
+    // añadir 'players' como dependencia y causar ejecuciones no deseadas.
+  }, [players]);
 
   // Función auxiliar para interpolar jugadores remotos (evita duplicación)
   const interpolateRemotePlayers = () => {
@@ -280,16 +361,17 @@ export const Game = ({ user }: GameProps) => {
         this.load.image("interiors", "assets/Interiors_free_48x48.png");
         this.load.image("room_builder", "assets/Room_Builder_free_48x48.png");
         this.load.tilemapTiledJSON("tilemap", "assets/tilemap.json");
+
+        // Cargar solo los assets del jugador local inicialmente
+        const localAvatar = userAvatarRef.current;
         Object.keys(animationsConfig).forEach((animationKey) => {
-          this.load.spritesheet(
-            animationKey,
-            `assets/characters/${userAvatarRef.current}/${animationKey}.png`,
-            {
-              frameWidth: 64,
-              frameHeight: 64,
-            }
-          );
+          const spriteKey = `${localAvatar}-${animationKey}`;
+          this.load.spritesheet(spriteKey, `assets/characters/${localAvatar}/${animationKey}.png`, {
+            frameWidth: 64,
+            frameHeight: 64,
+          });
         });
+        loadedAvatars.current.add(localAvatar);
       }
 
       function create(this: Phaser.Scene) {
@@ -357,8 +439,12 @@ export const Game = ({ user }: GameProps) => {
         this.matter.world.convertTilemapLayer(tablesLayer);
         this.matter.world.convertTilemapLayer(othersLayer);
 
-        // Creación del jugador
-        player.current = this.matter.add.sprite(960, 994, "walk");
+        // Creación del jugador local
+        player.current = this.matter.add.sprite(
+          960,
+          994,
+          `${userAvatarRef.current}-walk`
+        );
 
         player.current.setBody({
           type: "rectangle",
@@ -407,36 +493,22 @@ export const Game = ({ user }: GameProps) => {
         camera.startFollow(player.current, true, 0.1, 0.1);
         camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
-        Object.entries(animationsConfig).forEach(
-          ([animationKey, animations]) => {
-            animations.forEach((animation) => {
-              const { key, start, end } = animation;
-              const idleFrame =
-                "idleFrame" in animation ? animation.idleFrame : undefined;
-
-              const repeat = "repeat" in animation ? animation.repeat : -1;
-              if (idleFrame) {
-                // Animación idle
-                this.anims.create({
-                  key,
-                  frames: [{ key: animationKey, frame: idleFrame }],
-                  frameRate: 10,
-                  repeat,
-                });
-              }
-              // Animación de movimiento
+        // Función para crear las animaciones de un avatar específico
+        const createAvatarAnimations = (avatarName: string) => {
+          Object.entries(animationsConfig).forEach(([animGroupKey, anims]) => {
+            const spriteKey = `${avatarName}-${animGroupKey}`;
+            anims.forEach((anim) => {
+              const animKey = `${avatarName}-${anim.key}`;
               this.anims.create({
-                key,
-                frames: this.anims.generateFrameNumbers(animationKey, {
-                  start,
-                  end,
-                }),
+                key: animKey,
+                frames: this.anims.generateFrameNumbers(spriteKey, anim),
                 frameRate: 10,
-                repeat,
+                repeat: "repeat" in anim ? anim.repeat : -1,
               });
             });
-          }
-        );
+          });
+        };
+        createAvatarAnimations(userAvatarRef.current);
 
         // Ver si la animacion se detuvo
         player.current.on(
@@ -446,7 +518,7 @@ export const Game = ({ user }: GameProps) => {
               emoteRef.current = null;
               setEmote(null);
               player.current?.anims.play(
-                `idle-${lastFacing.current}` as const,
+                `${userAvatarRef.current}-idle-${lastFacing.current}`,
                 true
               );
             }
@@ -475,9 +547,10 @@ export const Game = ({ user }: GameProps) => {
       function update(this: Phaser.Scene) {
         if (emoteRef.current && player.current) {
           player.current?.setVelocity(0, 0);
-          const currentAnim = player.current?.anims.currentAnim?.key;
+          const emoteAnimKey = `${userAvatarRef.current}-${emoteRef.current}`;
+          const currentAnimKey = player.current?.anims.currentAnim?.key;
 
-          if (currentAnim !== emoteRef.current) {
+          if (currentAnimKey !== emoteAnimKey) {
             handlePlayerMove({
               position: {
                 x: player.current.x,
@@ -487,11 +560,12 @@ export const Game = ({ user }: GameProps) => {
                 id: userId.toString(),
                 name: user?.username || "Guest",
                 profile_url: user?.profile_url || "default-avatar.png",
+                avatar: userAvatarRef.current,
               },
-              animation: currentAnim,
+              animation: currentAnimKey,
               emote: emoteRef.current,
             });
-            player.current?.anims.play(emoteRef.current, true);
+            player.current?.anims.play(emoteAnimKey, true);
           }
           return;
         }
@@ -499,7 +573,7 @@ export const Game = ({ user }: GameProps) => {
         if (isInputFocusedRef.current) {
           player.current?.setVelocity(0, 0);
           player.current?.anims.play(
-            `idle-${lastFacing.current}` as const,
+            `${userAvatarRef.current}-idle-${lastFacing.current}`,
             true
           );
 
@@ -545,8 +619,9 @@ export const Game = ({ user }: GameProps) => {
 
           // Elegir animación: idle si no hay movimiento, o según dirección dominante
           if (velocityX === 0 && velocityY === 0) {
+            const idleAnimKey = `${userAvatarRef.current}-idle-${lastFacing.current}`;
             player.current?.anims.play(
-              `idle-${lastFacing.current}` as const,
+              idleAnimKey,
               true
             );
           } else {
@@ -563,7 +638,8 @@ export const Game = ({ user }: GameProps) => {
                 : "down";
 
             lastFacing.current = direction;
-            player.current?.anims.play(direction, true);
+            const moveAnimKey = `${userAvatarRef.current}-${direction}`;
+            player.current?.anims.play(moveAnimKey, true);
           }
         }
 
@@ -608,6 +684,7 @@ export const Game = ({ user }: GameProps) => {
               id: userId.toString(),
               name: user?.username || "Guest",
               profile_url: user?.profile_url || "default-avatar.png",
+              avatar: userAvatarRef.current,
             },
             animation: currentAnimKey,
           });
@@ -675,7 +752,7 @@ export const Game = ({ user }: GameProps) => {
         gameContainer.current = null;
       }
     };
-  }, [handlePlayerMove, user?.username, user?.profile_url, userId]);
+  }, [handlePlayerMove, user?.username, user?.profile_url, user?.avatar, userId, setEmote]);
 
   // Listeners para manejar el estado de input focus
   useEffect(() => {

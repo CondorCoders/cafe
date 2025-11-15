@@ -42,10 +42,6 @@ const useThrottleCallback = <Params extends unknown[], Return>(
 
 const supabase = createClient();
 
-// Genera un color aleatorio en formato HSL para cada usuario
-const generateRandomColor = () =>
-  `hsl(${Math.floor(Math.random() * 360)}, 100%, 70%)`;
-
 export const generateRandomNumber = () => Math.floor(Math.random() * 100);
 
 // Nombre del evento para los movimientos de jugadores
@@ -61,6 +57,7 @@ interface Player {
     id: string;
     name: string;
     profile_url?: string;
+    avatar?: string;
   };
   animation?: string;
   emote?: string | null;
@@ -78,6 +75,7 @@ export interface PresenceState {
   username: string;
   online_at: string;
   profile_url?: string;
+  avatar?: string;
 }
 
 export const useRealtimePlayers = ({
@@ -86,16 +84,15 @@ export const useRealtimePlayers = ({
   userId,
   throttleMs,
   profile_url,
+  avatar,
 }: {
   roomName: string;
   userId: string;
   username: string;
   throttleMs: number;
   profile_url: string;
+  avatar: string;
 }) => {
-  // Color único para este usuario (se genera una sola vez)
-  const [color] = useState(generateRandomColor());
-
   // Estado para almacenar las posiciones/movimientos de todos los jugadores
   const [players, setPlayers] = useState<Record<string, PlayerEventPayload>>(
     {}
@@ -126,6 +123,7 @@ export const useRealtimePlayers = ({
           id: user.id || userId,
           name: user.name || username,
           profile_url: user.profile_url || profile_url,
+          avatar: user.avatar || avatar,
         },
         animation: animation,
         emote: emote,
@@ -139,7 +137,7 @@ export const useRealtimePlayers = ({
         payload: payload,
       });
     },
-    [userId, username, color, profile_url]
+    [userId, username, profile_url, avatar]
   );
 
   // Función throttled para manejar movimientos sin saturar la red
@@ -219,6 +217,7 @@ export const useRealtimePlayers = ({
                 id: presence.user_id,
                 name: presence.username,
                 profile_url: presence.profile_url || "default-avatar.png",
+                avatar: presence.avatar || "sofia", // Usar el avatar de presence
               },
               animation: "turn",
               emote: null,
@@ -261,6 +260,7 @@ export const useRealtimePlayers = ({
             username: username,
             online_at: new Date().toISOString(),
             profile_url: profile_url,
+            avatar: avatar, // Trackear el avatar en presence
           });
         }
       });
@@ -270,7 +270,7 @@ export const useRealtimePlayers = ({
       // Supabase automáticamente hace untrack() de la presencia
       channel.unsubscribe();
     };
-  }, [roomName, userId, username]);
+  }, [roomName, userId, username, profile_url, setOnlineUsers, avatar]);
 
   return {
     players, // Posiciones actuales de todos los jugadores
