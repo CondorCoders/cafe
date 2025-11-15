@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 export const LoginButton = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [provider, setProvider] = useState<"google" | "twitch">("twitch");
 
   const handleSocialLogin = async () => {
     const supabase = createClient();
@@ -15,7 +16,7 @@ export const LoginButton = () => {
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "twitch",
+        provider: provider,
         options: {
           redirectTo: `${window.location.origin}/auth/oauth?next=/cafe`,
         },
@@ -28,9 +29,18 @@ export const LoginButton = () => {
     }
   };
   return (
-    <Button onClick={handleSocialLogin} disabled={isLoading}>
-      {isLoading ? "Logging in..." : "Login con Twitch"}
+    <div className="flex gap-2">
+      <Button
+        variant={provider === "google" ? "default" : "outline"}
+        onClick={() => setProvider("google")}
+      >
+        {isLoading ? "Conectando..." : `Entrar con Google`}
+      </Button>
+      {/* Botón principal */}
+      <Button onClick={handleSocialLogin} disabled={isLoading}>
+        {isLoading ? "Conectando..." : `Entrar con ${provider}`}
+      </Button>{" "}
       {error && <p className="text-sm text-destructive-500">{error}</p>}
-    </Button>
+    </div>
   );
 };

@@ -158,7 +158,9 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
           >
             <Avatar className="size-8">
               <AvatarImage src={user.profile_url} />
-              <AvatarFallback>{user.full_name.charAt(0)}</AvatarFallback>
+              <AvatarFallback>
+                {(user?.full_name ?? user?.username ?? "?").charAt(0)}
+              </AvatarFallback>
             </Avatar>
           </Button>
           {showMobileProfile && (
