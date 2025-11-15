@@ -17,7 +17,6 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import Image from "next/image";
 import { Label } from "./ui/label";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 
 const profileFormSchema = z.object({
   username: z.string().min(3, "Este campo debe tener minimo 3 caractere."),
@@ -49,7 +48,6 @@ const avatars = [
 ];
 
 export const ProfileForm = ({ profile }: ProfileFormProps) => {
-  const router = useRouter();
   const form = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {

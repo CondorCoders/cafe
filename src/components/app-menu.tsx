@@ -46,10 +46,15 @@ const tools = [
 
 interface AppSidebarProps {
   user: ProfileType;
-  onClose: () => void;
 }
 
-const ProfileMenu = ({ user, onClose }: AppSidebarProps) => {
+const ProfileMenu = ({
+  user,
+  onClose,
+}: {
+  user: ProfileType;
+  onClose: () => void;
+}) => {
   return (
     <div
       className="bg-indigo-950/90 rounded-t-2xl rounded-b-none sm:rounded-2xl mb-1 text-white relative max-h-96 overflow-hidden"
