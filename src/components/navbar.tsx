@@ -1,9 +1,9 @@
 import Image from "next/image";
 import { LogoutButton } from "./logout-button";
-import { User } from "./app-menu";
+import { ProfileType } from "./profile-form";
 
 interface NavbarProps {
-  user?: User;
+  user?: ProfileType;
 }
 
 export const Navbar = ({ user }: NavbarProps) => {
