@@ -3,7 +3,7 @@
 import { RealtimeChat } from "./realtime-chat";
 import { ChatMessage } from "@/hooks/use-realtime-chat";
 import { storeMessages } from "@/lib/store-messages";
-import { User } from "./app-menu";
+import { ProfileType } from "./profile-form";
 
 export const ChatJoin = ({
   roomId,
@@ -12,7 +12,7 @@ export const ChatJoin = ({
 }: {
   roomId: string;
   messages?: ChatMessage[];
-  user: User;
+  user: ProfileType;
 }) => {
   const handleOnMessage = async (messages: ChatMessage[]) => {
     await storeMessages(roomId, user.id, messages);

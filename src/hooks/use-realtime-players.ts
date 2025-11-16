@@ -217,9 +217,9 @@ export const useRealtimePlayers = ({
                 id: presence.user_id,
                 name: presence.username,
                 profile_url: presence.profile_url || "default-avatar.png",
-                avatar: presence.avatar || "sofia", // Usar el avatar de presence
+                avatar: presence.avatar || "sofia",
               },
-              animation: "turn",
+              animation: "idle-down",
               emote: null,
               timestamp: new Date().getTime(),
             },

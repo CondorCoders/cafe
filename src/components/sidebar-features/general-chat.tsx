@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { ChatJoin } from "../chat-join";
-import { User } from "../app-menu";
+import { ProfileType } from "../profile-form";
 
 interface MessageType {
   id: string;
@@ -15,7 +15,7 @@ interface MessageType {
 const ROOM_NAME = "general-chat";
 
 interface GeneralChatProps {
-  user: User;
+  user: ProfileType;
 }
 
 export const GeneralChat = ({ user }: GeneralChatProps) => {

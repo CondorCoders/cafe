@@ -50,7 +50,7 @@ export default async function Home() {
   return (
     <div className="font-[family-name:var(--font-geist-sans)]">
       <Navbar user={userId ? { id: userId, ...profile } : null} />
-      <main className="flex flex-col bg-[#EFEFED]">
+      <main className="flex flex-col bg-[#EFEFED] pt-20 md:pt-0">
         <section className="w-full min-h-screen mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="flex flex-col ml-auto justify-center max-w-2xl gap-6 p-4">
             <h1 className="text-6xl text-left font-jersey leading-[0.8]">
@@ -66,7 +66,9 @@ export default async function Home() {
               {userId ? (
                 <Link
                   href="/cafe"
-                  className={buttonVariants({ variant: "default" })}
+                  className={buttonVariants({
+                    variant: "default",
+                  })}
                 >
                   Ir al café
                 </Link>
@@ -74,7 +76,9 @@ export default async function Home() {
                 <LoginButton />
               )}
               <Link
-                className={buttonVariants({ variant: "outline" })}
+                className={buttonVariants({
+                  variant: "outline",
+                })}
                 href="https://github.com/CondorCoders/cafe"
                 target="_blank"
               >
@@ -120,11 +124,11 @@ export default async function Home() {
             <h2 className="font-jersey text-5xl tracking-wide">
               Contribuyentes
             </h2>
-            <div className="w-fit mx-auto items-center justify-center flex flex-row flex-wrap gap-2 hover:gap-7 transition-[gap] px-4 py-10">
+            <div className="w-fit mx-auto items-center justify-center flex flex-row flex-wrap gap-2 pr-4 pl-7 py-10 *:-ml-7 first:ml-0 transition-[gap] duration-300 [&:has(div:hover)]:gap-7">
               {contribuyentes.map((contribuyente) => (
                 <div
                   key={contribuyente.name}
-                  className="flex flex-col items-center *:-ml-7 first:ml-0"
+                  className="flex flex-col items-center"
                 >
                   <Tooltip>
                     <TooltipTrigger asChild>
