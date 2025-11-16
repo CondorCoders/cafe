@@ -51,9 +51,11 @@ interface AppSidebarProps {
 const ProfileMenu = ({
   user,
   onClose,
+  setActiveMenuItem,
 }: {
   user: ProfileType;
   onClose: () => void;
+  setActiveMenuItem: (item: string | null) => void;
 }) => {
   return (
     <div
@@ -78,7 +80,19 @@ const ProfileMenu = ({
           <X className="size-4" />
         </Button>
       </div>
-      <div className="p-4 pt-2">
+      <div className="p-4 pt-2 space-y-2">
+        <div className="sm:hidden">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              setActiveMenuItem("profile");
+              onClose();
+            }}
+          >
+            Mi Perfil
+          </Button>
+        </div>
         <LogoutButton className="w-full" />
       </div>
     </div>
@@ -111,7 +125,9 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
     <>
       <Dialog
         open={activeMenuItem === "profile"}
-        onOpenChange={() => setActiveMenuItem(null)}
+        onOpenChange={(open) => {
+          if (!open) setActiveMenuItem(null);
+        }}
       >
         <DialogContent>
           <DialogTitle>Personaliza tu perfil</DialogTitle>
@@ -120,7 +136,7 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
       </Dialog>
 
       <div className="absolute z-50 bottom-0 left-0 w-full sm:left-4 sm:w-auto sm:translate-x-0 sm:rounded-2xl sm:m-4 m-0 rounded-none">
-        {activeMenuItem && (
+        {activeMenuItem && activeMenuItem !== "profile" && (
           <div
             className="bg-indigo-950/90 rounded-t-2xl rounded-b-none sm:rounded-2xl mb-1 text-white relative max-h-96 overflow-hidden"
             style={{ width: `${menuWidth}px` }}
@@ -175,6 +191,7 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
                 <ProfileMenu
                   user={user}
                   onClose={() => setShowMobileProfile(false)}
+                  setActiveMenuItem={setActiveMenuItem}
                 />
               </div>
             )}
@@ -196,7 +213,10 @@ export const AppMenu = ({ user }: AppSidebarProps) => {
                   <Button
                     variant="outline"
                     className="w-full"
-                    onClick={() => setActiveMenuItem("profile")}
+                    onClick={() => {
+                      setActiveMenuItem("profile");
+                      setShowMobileProfile(false);
+                    }}
                   >
                     Perfil
                   </Button>
