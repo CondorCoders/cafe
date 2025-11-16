@@ -72,9 +72,7 @@ export const Game = ({ user }: GameProps) => {
     userId: userId.toString(),
     username: user?.username || "Guest",
     profile_url: user?.profile_url || "default-avatar.png",
-    avatar: user?.avatar || "sofia",
-    // Reducción de frecuencia de broadcast a nivel hook
-    avatar: user?.avatar || "sofia",
+    avatar: user?.avatar || "sofia",    
     throttleMs: 150,
   });
 
