@@ -42,10 +42,6 @@ const useThrottleCallback = <Params extends unknown[], Return>(
 
 const supabase = createClient();
 
-// Genera un color aleatorio en formato HSL para cada usuario
-const generateRandomColor = () =>
-  `hsl(${Math.floor(Math.random() * 360)}, 100%, 70%)`;
-
 export const generateRandomNumber = () => Math.floor(Math.random() * 100);
 
 // Nombre del evento para los movimientos de jugadores
@@ -95,11 +91,8 @@ export const useRealtimePlayers = ({
   username: string;
   throttleMs: number;
   profile_url: string;
-  avatar?: string;
+  avatar: string;
 }) => {
-  // Color único para este usuario (se genera una sola vez)
-  const [color] = useState(generateRandomColor());
-
   // Estado para almacenar las posiciones/movimientos de todos los jugadores
   const [players, setPlayers] = useState<Record<string, PlayerEventPayload>>(
     {}
@@ -130,7 +123,7 @@ export const useRealtimePlayers = ({
           id: user.id || userId,
           name: user.name || username,
           profile_url: user.profile_url || profile_url,
-          avatar: user.avatar || "sofia",
+          avatar: user.avatar || avatar,
         },
         animation: animation,
         emote: emote,
@@ -144,7 +137,7 @@ export const useRealtimePlayers = ({
         payload: payload,
       });
     },
-    [userId, username, color, profile_url]
+    [userId, username, profile_url, avatar]
   );
 
   // Función throttled para manejar movimientos sin saturar la red
@@ -267,7 +260,7 @@ export const useRealtimePlayers = ({
             username: username,
             online_at: new Date().toISOString(),
             profile_url: profile_url,
-            avatar: avatar || "sofia",
+            avatar: avatar, // Trackear el avatar en presence
           });
         }
       });
@@ -277,7 +270,7 @@ export const useRealtimePlayers = ({
       // Supabase automáticamente hace untrack() de la presencia
       channel.unsubscribe();
     };
-  }, [roomName, userId, username]);
+  }, [roomName, userId, username, profile_url, setOnlineUsers, avatar]);
 
   return {
     players, // Posiciones actuales de todos los jugadores
