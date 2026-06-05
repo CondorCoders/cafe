@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import Image from "next/image";
 import { Label } from "./ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { avatarOptions } from "@/data/avatar-options";
 
 const profileFormSchema = z.object({
   username: z.string().min(3, "Este campo debe tener minimo 3 caractere."),
@@ -33,19 +34,6 @@ export interface ProfileType extends z.infer<typeof profileFormSchema> {
 export interface ProfileFormProps {
   profile: ProfileType;
 }
-
-const avatars = [
-  {
-    id: "1",
-    name: "sofia",
-    image: "/assets/characters-preview/sofia.png",
-  },
-  {
-    id: "2",
-    name: "luis",
-    image: "/assets/characters-preview/luis.png",
-  },
-];
 
 export const ProfileForm = ({ profile }: ProfileFormProps) => {
   const form = useForm<z.infer<typeof profileFormSchema>>({
@@ -127,7 +115,7 @@ export const ProfileForm = ({ profile }: ProfileFormProps) => {
                     onValueChange={field.onChange}
                     className="w-full h-full flex gap-4"
                   >
-                    {avatars.map((avatar) => (
+                    {avatarOptions.map((avatar) => (
                       <div
                         key={avatar.id}
                         className="flex flex-col items-center"

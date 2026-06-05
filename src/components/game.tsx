@@ -1,13 +1,27 @@
 "use client";
 
 import {
+  DEFAULT_PLAYER_SPAWN,
   generateRandomNumber,
   useRealtimePlayers,
 } from "@/hooks/use-realtime-players";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoadingScreen } from "./loading-screen";
-import { animationsConfig } from "@/data/animations";
 import { useEmote } from "@/context/emote-context";
+import {
+  createLocalAvatarAnimations,
+  createRemoteAvatarAnimations,
+  normalizeAvatar,
+  preloadLocalAvatarAssets,
+  preloadRemoteAvatarAssets,
+} from "@/lib/game/avatar-assets";
+import {
+  interpolateRemotePlayers,
+  type RemotePlayerRefs,
+  syncDirtyRemotePlayersWithNetworkState,
+} from "@/lib/game/remote-players";
+import { setupGameFocusHandoff } from "@/lib/game/focus-handoff";
+import { availableAvatarNames } from "@/data/avatar-options";
 
 interface UserProfile {
   id: string;
@@ -21,6 +35,9 @@ interface GameProps {
 }
 
 export const Game = ({ user }: GameProps) => {
+  // 1. El punto central de integración.
+  //    Aquí viven los refs de Phaser, la conexión con useRealtimePlayers
+  //    y el ciclo de vida preload/create/update.
   const gameContainer = useRef<Phaser.Game | null>(null);
   const player = useRef<Phaser.Physics.Matter.Sprite | null>(null);
   const playerUsername = useRef<Phaser.GameObjects.Text | null>(null);
@@ -35,22 +52,31 @@ export const Game = ({ user }: GameProps) => {
   const remotePlayersDepth = useRef<Record<string, number>>({});
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cursorsRef = useRef<Phaser.Types.Input.Keyboard.CursorKeys | null>(
-    null
+    null,
   );
   const wasdKeysRef = useRef<Record<string, Phaser.Input.Keyboard.Key> | null>(
-    null
+    null,
   );
-  // Control de envío local para evitar spam a Realtime
-  const lastBroadcastRef = useRef(0);
   const lastSentRef = useRef<{ x: number; y: number; animation?: string }>({
     x: 0,
     y: 0,
     animation: undefined,
   });
-  const userAvatarRef = useRef<string>(user?.avatar || "sofia");
+  const userProfileRef = useRef({
+    username: user?.username || "Guest",
+    profile_url: user?.profile_url || "default-avatar.png",
+    avatar: user?.avatar || "sofia",
+  });
+  const userAvatarRef = useRef<string>(userProfileRef.current.avatar);
   const emoteRef = useRef<string | null>(null);
-  // Intervalo local mínimo entre envíos (ms)
-  const LOCAL_BROADCAST_MS = 150;
+  const handlePlayerMoveRef = useRef<
+    ReturnType<typeof useRealtimePlayers>["handlePlayerMove"] | null
+  >(null);
+  const syncRemotePlayersWithNetworkStateRef = useRef<(() => void) | null>(
+    null,
+  );
+  const setEmoteRef = useRef<((emote: string | null) => void) | null>(null);
+  const remoteAvatarRef = useRef<Record<string, string>>({});
 
   // Estados para la carga del juego
   const [isLoading, setIsLoading] = useState(true);
@@ -62,31 +88,61 @@ export const Game = ({ user }: GameProps) => {
         prev: { x: number; y: number };
         next: { x: number; y: number };
         lastUpdate: number;
+        lastSeq: number;
       }
     >
   >({});
+  const remotePlayerRefs = useMemo<RemotePlayerRefs>(
+    () => ({
+      sprites: playersRefs,
+      labels: playersUsernames,
+      states: remotePlayerStates,
+      depths: remotePlayersDepth,
+      avatars: remoteAvatarRef,
+    }),
+    [],
+  );
 
-  const { players, handlePlayerMove } = useRealtimePlayers({
+  const {
+    dirtyRemotePlayerIdsRef,
+    removedRemotePlayerIdsRef,
+    playersRef,
+    handlePlayerMove,
+  } = useRealtimePlayers({
     roomName: "virtual-cafe",
     userId: userId.toString(),
-    username: user?.username || "Guest",
-    profile_url: user?.profile_url || "default-avatar.png",
-    avatar: user?.avatar || "sofia",
-    // Reducción de frecuencia de broadcast a nivel hook
+    username: userProfileRef.current.username,
+    profile_url: userProfileRef.current.profile_url,
+    avatar: userProfileRef.current.avatar,
+    initialPosition: DEFAULT_PLAYER_SPAWN,
     throttleMs: 150,
   });
 
   const { emote, setEmote } = useEmote();
 
-  // Referencia para acceder a players en Phaser sin recrear el juego
-  const playersData = useRef(players);
-
-  // Actualizar la referencia cuando cambien los players
   useEffect(() => {
-    playersData.current = players;
-  }, [players]);
+    // 2. Ref espejo del perfil: Phaser usa estos valores desde callbacks
+    //    y no queremos recrear la escena por cada render de React.
+    userProfileRef.current = {
+      username: user?.username || "Guest",
+      profile_url: user?.profile_url || "default-avatar.png",
+      avatar: user?.avatar || "sofia",
+    };
+    userAvatarRef.current = userProfileRef.current.avatar;
+  }, [user?.avatar, user?.profile_url, user?.username]);
 
   useEffect(() => {
+    // 3. La escena llama movimiento a través de un ref estable.
+    handlePlayerMoveRef.current = handlePlayerMove;
+  }, [handlePlayerMove]);
+
+  useEffect(() => {
+    // 4. Igual para setEmote: Phaser lo consume desde listeners propios.
+    setEmoteRef.current = setEmote;
+  }, [setEmote]);
+
+  useEffect(() => {
+    // 5. Traducimos el emote seleccionado a la variante direccional actual.
     if (emote) {
       emoteRef.current = `${emote}-${lastFacing.current}`;
     } else {
@@ -94,167 +150,34 @@ export const Game = ({ user }: GameProps) => {
     }
   }, [emote]);
 
+  const syncRemotePlayersWithNetworkState = useCallback(() => {
+    // 6. Este callback solo orquesta:
+    //    delega la reconciliación real a lib/game/remote-players.ts.
+    syncDirtyRemotePlayersWithNetworkState({
+      sceneRef: scene,
+      localUserIdRef: userIdString,
+      networkPlayersRef: playersRef,
+      dirtyRemotePlayerIdsRef,
+      removedRemotePlayerIdsRef,
+      remotePlayerRefs,
+    });
+  }, [
+    dirtyRemotePlayerIdsRef,
+    playersRef,
+    removedRemotePlayerIdsRef,
+    remotePlayerRefs,
+  ]);
+
   useEffect(() => {
-    if (!gameContainer.current) return;
-
-    // 1. Crear/actualizar jugadores existentes
-    const now = Date.now();
-    Object.entries(players).forEach(([id, playerData]) => {
-      // Guardar posiciones previas y nuevas para **interpolación temporal**
-      if (id !== userIdString.current) {
-        if (!remotePlayerStates.current[id]) {
-          remotePlayerStates.current[id] = {
-            prev: { x: playerData?.position.x, y: playerData?.position.y },
-            next: { x: playerData?.position.x, y: playerData?.position.y },
-            lastUpdate: now,
-          };
-        } else {
-          const state = remotePlayerStates.current[id];
-
-          const sprite = playersRefs.current[id];
-          if (sprite) {
-            state.prev.x = sprite.x;
-            state.prev.y = sprite.y;
-          } else {
-            // fallback: conservar el comportamiento previo
-            state.prev.x = state.next.x;
-            state.prev.y = state.next.y;
-          }
-
-          state.next.x = playerData?.position.x;
-          state.next.y = playerData?.position.y;
-          state.lastUpdate = now;
-        }
-      }
-      if (!playersRefs.current[id] && playerData?.animation) {
-        const newPlayer = scene.current?.matter.add.sprite(
-          playerData?.position.x,
-          playerData?.position.y,
-          playerData?.animation
-        );
-        newPlayer?.setDepth(playerData?.position.y);
-        newPlayer?.setBody({
-          type: "rectangle",
-          width: 32,
-          height: 48,
-        });
-        newPlayer?.setFixedRotation();
-        newPlayer?.setOrigin(0.5, 0.6);
-        // CAMBIO: Hacer que los jugadores remotos sean sensores
-        if (id !== userIdString.current) {
-          newPlayer?.setSensor(true); // CAMBIO: Jugador remoto no colisiona
-        }
-
-        const label = scene.current?.add.text(
-          newPlayer?.x || playerData?.position.x,
-          (newPlayer?.y || playerData?.position.y) - 40,
-          playerData?.user.name || "Guest",
-          {
-            fontSize: "12px",
-            color: "#ffffff",
-            backgroundColor: "#000000",
-            padding: { x: 5, y: 2 },
-          }
-        );
-        label?.setOrigin(0.5, 0.5);
-        playersUsernames.current[id] = label!;
-        playersRefs.current[id] = newPlayer!;
-      } else {
-        const existingPlayer = playersRefs.current[id];
-
-        if (existingPlayer.anims?.currentAnim?.key !== playerData.animation) {
-          existingPlayer.anims.play(playerData.animation || "idle-down", true);
-        }
-      }
-
-      if (playerData?.emote) {
-        const existingPlayer = playersRefs.current[id];
-        existingPlayer.anims.play(playerData.emote || "idle-down", true);
-
-        existingPlayer.on(
-          "animationcomplete",
-          (animation: Phaser.Animations.Animation) => {
-            if (animation.key === playerData.emote) {
-              existingPlayer?.anims.play(`idle-down` as const, true);
-            }
-          }
-        );
-      }
-    });
-
-    // 2. Limpiar jugadores desconectados de la escena
-    const currentPlayerIds = Object.keys(players);
-    const scenePlayerIds = Object.keys(playersRefs.current);
-
-    // Encontrar jugadores que están en la escena pero ya no en players
-    const playersToRemove = scenePlayerIds.filter(
-      (id) => !currentPlayerIds.includes(id)
-    );
-
-    // Remover jugadores desconectados de la escena
-    playersToRemove.forEach((playerId) => {
-      console.log("Removiendo jugador de la escena:", playerId);
-
-      // Destruir el sprite del jugador
-      if (playersRefs.current[playerId]) {
-        playersRefs.current[playerId].destroy();
-        delete playersRefs.current[playerId];
-      }
-
-      // Destruir el texto del nombre
-      if (playersUsernames.current[playerId]) {
-        playersUsernames.current[playerId].destroy();
-        delete playersUsernames.current[playerId];
-      }
-
-      // Limpiar estado de interpolación
-      delete remotePlayerStates.current[playerId];
-      delete remotePlayersDepth.current[playerId];
-    });
-  }, [players, userId]);
-
-  // Función auxiliar para interpolar jugadores remotos (evita duplicación)
-  const interpolateRemotePlayers = () => {
-    // Alinear la interpolación con el throttle (~150ms) para suavidad
-    const INTERPOLATION_DURATION = 140;
-    const now = Date.now();
-
-    for (const id in playersRefs.current) {
-      if (id === userIdString.current) continue;
-
-      const sprite = playersRefs.current[id];
-      const state = remotePlayerStates.current[id];
-
-      if (sprite && state) {
-        const t = Math.min(
-          (now - state.lastUpdate) / INTERPOLATION_DURATION,
-          1
-        );
-
-        // Interpolación manual (más eficiente que Phaser.Math.Interpolation.Linear)
-        sprite.x = state.prev.x + (state.next.x - state.prev.x) * t;
-        sprite.y = state.prev.y + (state.next.y - state.prev.y) * t;
-
-        // Si completó la interpolación, asegurar posición exacta objetivo
-        if (t >= 1) {
-          sprite.x = state.next.x;
-          sprite.y = state.next.y;
-        }
-
-        playersUsernames.current[id].setPosition(sprite.x, sprite.y - 40);
-
-        // Optimizar depth: solo actualizar si cambia significativamente
-        const newDepth = Math.floor(sprite.y);
-        if (Math.abs((remotePlayersDepth.current[id] || 0) - newDepth) >= 1) {
-          sprite.setDepth(newDepth);
-          remotePlayersDepth.current[id] = newDepth;
-        }
-      }
-    }
-  };
+    // 7. Phaser update() consume esta función vía ref para no acoplar
+    //    la inicialización del juego a la identidad de callbacks de React.
+    syncRemotePlayersWithNetworkStateRef.current =
+      syncRemotePlayersWithNetworkState;
+  }, [syncRemotePlayersWithNetworkState]);
 
   useEffect(() => {
     const initGame = async () => {
+      // 8. Paso 1 del boot: esperar el contenedor real antes de crear Phaser.
       // Verificar que el contenedor existe antes de inicializar
       const container = document.getElementById("game-container");
       if (!container) {
@@ -265,6 +188,7 @@ export const Game = ({ user }: GameProps) => {
       const Phaser = await import("phaser");
 
       function preload(this: Phaser.Scene) {
+        // 9. Paso 2 del boot: cargar mapa, tiles y assets de avatar.
         // Configurar callbacks de progreso
         this.load.on("progress", (progress: number) => {
           const percentage = Math.round(progress * 70); // 70% para assets
@@ -280,19 +204,14 @@ export const Game = ({ user }: GameProps) => {
         this.load.image("interiors", "assets/Interiors_free_48x48.png");
         this.load.image("room_builder", "assets/Room_Builder_free_48x48.png");
         this.load.tilemapTiledJSON("tilemap", "assets/tilemap.json");
-        Object.keys(animationsConfig).forEach((animationKey) => {
-          this.load.spritesheet(
-            animationKey,
-            `assets/characters/${userAvatarRef.current}/${animationKey}.png`,
-            {
-              frameWidth: 64,
-              frameHeight: 64,
-            }
-          );
+        preloadLocalAvatarAssets(this, normalizeAvatar(userAvatarRef.current));
+        availableAvatarNames.forEach((avatar) => {
+          preloadRemoteAvatarAssets(this, avatar);
         });
       }
 
       function create(this: Phaser.Scene) {
+        // 10. Paso 3 del boot: crear mapa, jugador local, cámara y animaciones.
         scene.current = this;
 
         // Creación del mapa
@@ -302,7 +221,7 @@ export const Game = ({ user }: GameProps) => {
         const tilesetInteriors = map.addTilesetImage("tileset_2", "interiors");
         const tilesetRoomBuilder = map.addTilesetImage(
           "tileset_3",
-          "room_builder"
+          "room_builder",
         );
         // Puedes agregar más tilesets si tu tilemap.json los tiene
         // Agrupa todos los tilesets en un array y filtra los null
@@ -322,7 +241,7 @@ export const Game = ({ user }: GameProps) => {
           "lowerFlowers",
           tilesets,
           0,
-          0
+          0,
         )!;
         const furnitureLayer = map.createLayer("furniture", tilesets, 0, 0)!;
         const tablesLayer = map.createLayer("tables", tilesets, 0, 0)!;
@@ -330,7 +249,7 @@ export const Game = ({ user }: GameProps) => {
           "upperFlowers",
           tilesets,
           0,
-          0
+          0,
         )!;
         map.createLayer("ornaments", tilesets, 0, 0);
         const doorsLayer = map.createLayer("doors", tilesets, 0, 0)!;
@@ -340,7 +259,7 @@ export const Game = ({ user }: GameProps) => {
           "Above Player",
           tilesets,
           0,
-          0
+          0,
         );
 
         chairsLayer?.setCollisionByProperty({ collider: true });
@@ -358,7 +277,11 @@ export const Game = ({ user }: GameProps) => {
         this.matter.world.convertTilemapLayer(othersLayer);
 
         // Creación del jugador
-        player.current = this.matter.add.sprite(960, 994, "walk");
+        player.current = this.matter.add.sprite(
+          DEFAULT_PLAYER_SPAWN.x,
+          DEFAULT_PLAYER_SPAWN.y,
+          "walk",
+        );
 
         player.current.setBody({
           type: "rectangle",
@@ -385,13 +308,13 @@ export const Game = ({ user }: GameProps) => {
         playerUsername.current = this.add.text(
           player.current.x,
           player.current.y - 40,
-          user?.username || "Guest",
+          userProfileRef.current.username,
           {
             fontSize: "12px",
             color: "#ffffff",
             backgroundColor: "#000000",
             padding: { x: 5, y: 2 },
-          }
+          },
         );
         playerUsername.current.setOrigin(0.5, 0.5);
 
@@ -407,36 +330,10 @@ export const Game = ({ user }: GameProps) => {
         camera.startFollow(player.current, true, 0.1, 0.1);
         camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
-        Object.entries(animationsConfig).forEach(
-          ([animationKey, animations]) => {
-            animations.forEach((animation) => {
-              const { key, start, end } = animation;
-              const idleFrame =
-                "idleFrame" in animation ? animation.idleFrame : undefined;
-
-              const repeat = "repeat" in animation ? animation.repeat : -1;
-              if (idleFrame) {
-                // Animación idle
-                this.anims.create({
-                  key,
-                  frames: [{ key: animationKey, frame: idleFrame }],
-                  frameRate: 10,
-                  repeat,
-                });
-              }
-              // Animación de movimiento
-              this.anims.create({
-                key,
-                frames: this.anims.generateFrameNumbers(animationKey, {
-                  start,
-                  end,
-                }),
-                frameRate: 10,
-                repeat,
-              });
-            });
-          }
-        );
+        createLocalAvatarAnimations(this);
+        availableAvatarNames.forEach((avatar) => {
+          createRemoteAvatarAnimations(this, avatar);
+        });
 
         // Ver si la animacion se detuvo
         player.current.on(
@@ -444,13 +341,13 @@ export const Game = ({ user }: GameProps) => {
           (animation: Phaser.Animations.Animation) => {
             if (animation.key === emoteRef.current) {
               emoteRef.current = null;
-              setEmote(null);
+              setEmoteRef.current?.(null);
               player.current?.anims.play(
                 `idle-${lastFacing.current}` as const,
-                true
+                true,
               );
             }
-          }
+          },
         );
 
         // Crear controles del teclado una sola vez
@@ -473,20 +370,25 @@ export const Game = ({ user }: GameProps) => {
       }
 
       function update(this: Phaser.Scene) {
+        // 11. Paso 4 del loop: reconciliar remotos "dirty" antes
+        //     de procesar input local e interpolación.
+        syncRemotePlayersWithNetworkStateRef.current?.();
+
         if (emoteRef.current && player.current) {
           player.current?.setVelocity(0, 0);
           const currentAnim = player.current?.anims.currentAnim?.key;
 
           if (currentAnim !== emoteRef.current) {
-            handlePlayerMove({
+            handlePlayerMoveRef.current?.({
               position: {
                 x: player.current.x,
                 y: player.current.y,
               },
               user: {
                 id: userId.toString(),
-                name: user?.username || "Guest",
-                profile_url: user?.profile_url || "default-avatar.png",
+                name: userProfileRef.current.username,
+                profile_url: userProfileRef.current.profile_url,
+                avatar: userProfileRef.current.avatar,
               },
               animation: currentAnim,
               emote: emoteRef.current,
@@ -500,13 +402,13 @@ export const Game = ({ user }: GameProps) => {
           player.current?.setVelocity(0, 0);
           player.current?.anims.play(
             `idle-${lastFacing.current}` as const,
-            true
+            true,
           );
 
           // Actualizar posición del nombre de usuario del jugador
           playerUsername.current?.setPosition(
             player.current?.x || 0,
-            (player.current?.y || 0) - 40
+            (player.current?.y || 0) - 40,
           );
 
           if (player.current) {
@@ -514,7 +416,10 @@ export const Game = ({ user }: GameProps) => {
           }
 
           // Continuar manejando la interpolación para otros jugadores
-          interpolateRemotePlayers();
+          interpolateRemotePlayers({
+            localUserIdRef: userIdString,
+            remotePlayerRefs,
+          });
           return; // Salir temprano, no procesar controles del juego
         }
 
@@ -547,7 +452,7 @@ export const Game = ({ user }: GameProps) => {
           if (velocityX === 0 && velocityY === 0) {
             player.current?.anims.play(
               `idle-${lastFacing.current}` as const,
-              true
+              true,
             );
           } else {
             const absVelX = Math.abs(velocityX);
@@ -559,8 +464,8 @@ export const Game = ({ user }: GameProps) => {
                   ? "left"
                   : "right"
                 : velocityY < 0
-                ? "up"
-                : "down";
+                  ? "up"
+                  : "down";
 
             lastFacing.current = direction;
             player.current?.anims.play(direction, true);
@@ -570,7 +475,7 @@ export const Game = ({ user }: GameProps) => {
         player.current?.setVelocity(velocityX, velocityY);
         playerUsername.current?.setPosition(
           player.current?.x || 0,
-          (player.current?.y || 0) - 40
+          (player.current?.y || 0) - 40,
         );
 
         // Optimizar actualización de depth: solo actualizar si cambia >= 1 pixel
@@ -583,12 +488,11 @@ export const Game = ({ user }: GameProps) => {
         }
 
         // INTERPOLACIÓN TEMPORAL PARA JUGADORES REMOTOS
-        interpolateRemotePlayers();
+        interpolateRemotePlayers({
+          localUserIdRef: userIdString,
+          remotePlayerRefs,
+        });
 
-        // Gate local de rate limiting + cambio de animación
-        const nowTs = performance.now();
-        const canSendByTime =
-          nowTs - lastBroadcastRef.current >= LOCAL_BROADCAST_MS;
         const currentAnimKey = player.current?.anims.currentAnim?.key;
         const hasAnimChanged = currentAnimKey !== lastSentRef.current.animation;
 
@@ -597,22 +501,22 @@ export const Game = ({ user }: GameProps) => {
 
         // Enviar si:
         // - Cambió la animación (ej. mover->idle o idle->mover)
-        // - O está moviéndose y ya pasó el intervalo local
-        if (player.current && (hasAnimChanged || (isMoving && canSendByTime))) {
-          handlePlayerMove({
+        // - O el jugador sigue moviéndose; el hook define la cadencia real de envío
+        if (player.current && (hasAnimChanged || isMoving)) {
+          handlePlayerMoveRef.current?.({
             position: {
               x: player.current.x,
               y: player.current.y,
             },
             user: {
               id: userId.toString(),
-              name: user?.username || "Guest",
-              profile_url: user?.profile_url || "default-avatar.png",
+              name: userProfileRef.current.username,
+              profile_url: userProfileRef.current.profile_url,
+              avatar: userProfileRef.current.avatar,
             },
             animation: currentAnimKey,
           });
 
-          lastBroadcastRef.current = nowTs;
           lastSentRef.current = {
             x: player.current.x,
             y: player.current.y,
@@ -664,6 +568,7 @@ export const Game = ({ user }: GameProps) => {
     }, 100);
 
     return () => {
+      // 12. Paso final: destruir Phaser y vaciar refs runtime del juego.
       clearTimeout(timer);
       // Limpiar timeout de carga si el componente se desmonta
       if (loadingTimeoutRef.current) {
@@ -674,64 +579,25 @@ export const Game = ({ user }: GameProps) => {
         gameContainer.current.destroy(true);
         gameContainer.current = null;
       }
+      scene.current = null;
+      syncRemotePlayersWithNetworkStateRef.current = null;
+      player.current = null;
+      playerUsername.current = null;
+      remotePlayerRefs.sprites.current = {};
+      remotePlayerRefs.labels.current = {};
+      remotePlayerRefs.states.current = {};
+      remotePlayerRefs.depths.current = {};
+      remotePlayerRefs.avatars.current = {};
     };
-  }, [handlePlayerMove, user?.username, user?.profile_url, userId]);
+  }, [remotePlayerRefs, userId]);
 
-  // Listeners para manejar el estado de input focus
+  // Listeners para manejar el handoff de foco entre UI y Phaser
   useEffect(() => {
-    const isInputElement = (target: HTMLElement) =>
-      target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.contentEditable === "true";
-
-    // Habilita o deshabilita el manejo de teclado de Phaser
-    const togglePhaserKeyboard = (enabled: boolean) => {
-      if (scene.current?.input?.keyboard) {
-        scene.current.input.keyboard.manager.enabled = enabled;
-      }
-    };
-
-    // Listener para cuando se enfoca un input
-    const handleFocusIn = (event: FocusEvent) => {
-      if (isInputElement(event.target as HTMLElement)) {
-        isInputFocusedRef.current = true;
-        togglePhaserKeyboard(false);
-      }
-    };
-
-    // Listener para cuando se desenfoca un input
-    const handleFocusOut = () => {
-      setTimeout(() => {
-        const activeElement = document.activeElement as HTMLElement;
-        const inputFocused = activeElement && isInputElement(activeElement);
-        isInputFocusedRef.current = !!inputFocused;
-        togglePhaserKeyboard(!inputFocused);
-      }, 10);
-    };
-
-    // Listener para click en el canvas
-    const handleCanvasClick = (event: MouseEvent) => {
-      if ((event.target as HTMLElement).tagName === "CANVAS") {
-        const activeElement = document.activeElement as HTMLElement;
-        if (activeElement && isInputElement(activeElement)) {
-          activeElement.blur();
-        }
-      }
-    };
-
-    document.addEventListener("focusin", handleFocusIn, true);
-    document.addEventListener("focusout", handleFocusOut, true);
-    document
-      .getElementById("game-container")
-      ?.addEventListener("click", handleCanvasClick);
-
-    return () => {
-      document.removeEventListener("focusin", handleFocusIn, true);
-      document.removeEventListener("focusout", handleFocusOut, true);
-      document
-        .getElementById("game-container")
-        ?.removeEventListener("click", handleCanvasClick);
-    };
+    // 13. Este efecto solo conecta el sistema de foco extraído.
+    return setupGameFocusHandoff({
+      sceneRef: scene,
+      isInputFocusedRef,
+    });
   }, []);
 
   return (

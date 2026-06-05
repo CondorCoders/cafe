@@ -1,20 +1,45 @@
+"use client";
+
 import { useOnlineUsers } from "@/context/online-users-context";
 import { createClient } from "@/lib/supabase/client";
 import { RealtimeChannel } from "@supabase/supabase-js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
-/**
- * Hook personalizado para manejar jugadores en tiempo real usando Supabase
- * Combina broadcast (para movimientos) y presence (para conexiones/desconexiones)
- */
-// Función throttle: limita la frecuencia de llamadas a una función
-// Solo ejecuta el callback si ha pasado el tiempo de delay especificado
+const supabase = createClient();
+
+const EVENT_NAME = "realtime-player-move";
+const DEFAULT_ANIMATION = "idle-down";
+const DEFAULT_AVATAR = "sofia";
+const PRESENCE_UPDATE_INTERVAL_MS = 2000;
+const PRESENCE_POSITION_DELTA = 24;
+const PRESENCE_HEARTBEAT_MS = 3000;
+
+export const DEFAULT_PLAYER_SPAWN = {
+  x: 960,
+  y: 994,
+};
+
 const useThrottleCallback = <Params extends unknown[], Return>(
   callback: (...args: Params) => Return,
   delay: number
 ) => {
+  const callbackRef = useRef(callback);
   const lastCall = useRef(0);
-  const timeout = useRef<NodeJS.Timeout | null>(null);
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingArgs = useRef<Params | null>(null);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  useEffect(
+    () => () => {
+      if (timeout.current) {
+        clearTimeout(timeout.current);
+      }
+    },
+    []
+  );
 
   return useCallback(
     (...args: Params) => {
@@ -26,32 +51,58 @@ const useThrottleCallback = <Params extends unknown[], Return>(
           clearTimeout(timeout.current);
           timeout.current = null;
         }
+
+        pendingArgs.current = null;
         lastCall.current = now;
-        callback(...args);
-      } else if (!timeout.current) {
+        return callbackRef.current(...args);
+      }
+
+      pendingArgs.current = args;
+
+      if (!timeout.current) {
         timeout.current = setTimeout(() => {
           lastCall.current = Date.now();
           timeout.current = null;
-          callback(...args);
+
+          if (pendingArgs.current) {
+            callbackRef.current(...pendingArgs.current);
+            pendingArgs.current = null;
+          }
         }, remainingTime);
       }
     },
-    [callback, delay]
+    [delay]
   );
 };
 
-const supabase = createClient();
+const hasMovedEnoughForPresence = (
+  previous?: { x: number; y: number },
+  next?: { x: number; y: number }
+) => {
+  if (!previous || !next) return true;
 
-// Genera un color aleatorio en formato HSL para cada usuario
-const generateRandomColor = () =>
-  `hsl(${Math.floor(Math.random() * 360)}, 100%, 70%)`;
+  return (
+    Math.abs(previous.x - next.x) >= PRESENCE_POSITION_DELTA ||
+    Math.abs(previous.y - next.y) >= PRESENCE_POSITION_DELTA
+  );
+};
+
+const getLatestPresence = (presences: PresenceState[]) =>
+  [...presences].sort((left, right) => {
+    const leftSeq = left.seq ?? -1;
+    const rightSeq = right.seq ?? -1;
+
+    if (leftSeq !== rightSeq) {
+      return rightSeq - leftSeq;
+    }
+
+    return (
+      new Date(right.online_at).getTime() - new Date(left.online_at).getTime()
+    );
+  })[0];
 
 export const generateRandomNumber = () => Math.floor(Math.random() * 100);
 
-// Nombre del evento para los movimientos de jugadores
-const EVENT_NAME = "realtime-player-move";
-
-// Interfaz para definir la estructura básica de un jugador
 interface Player {
   position: {
     x: number;
@@ -65,21 +116,25 @@ interface Player {
   };
   animation?: string;
   emote?: string | null;
-  color?: string;
 }
 
-// Extiende Player agregando timestamp para eventos de movimiento
-interface PlayerEventPayload extends Player {
+export interface PlayerSnapshot extends Player {
+  seq: number;
   timestamp: number;
 }
 
-// Estructura de datos para el estado de presencia (usuarios conectados)
 export interface PresenceState {
   user_id: string;
   username: string;
   online_at: string;
   profile_url?: string;
   avatar?: string;
+  position?: {
+    x: number;
+    y: number;
+  };
+  animation?: string;
+  seq?: number;
 }
 
 export const useRealtimePlayers = ({
@@ -89,6 +144,7 @@ export const useRealtimePlayers = ({
   throttleMs,
   profile_url,
   avatar,
+  initialPosition,
 }: {
   roomName: string;
   userId: string;
@@ -96,32 +152,161 @@ export const useRealtimePlayers = ({
   throttleMs: number;
   profile_url: string;
   avatar?: string;
+  initialPosition: {
+    x: number;
+    y: number;
+  };
 }) => {
-  // Color único para este usuario (se genera una sola vez)
-  const [color] = useState(generateRandomColor());
+  const { setOnlineUsers } = useOnlineUsers();
 
-  // Estado para almacenar las posiciones/movimientos de todos los jugadores
-  const [players, setPlayers] = useState<Record<string, PlayerEventPayload>>(
-    {}
+  const playersRef = useRef<Record<string, PlayerSnapshot>>({});
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const isConnectedRef = useRef(false);
+  const localSequenceRef = useRef(0);
+  const latestRemoteSequenceRef = useRef<Record<string, number>>({});
+  const lastPresenceTrackRef = useRef<PresenceState | null>(null);
+  const lastPresenceTrackAtRef = useRef(0);
+  const lastLocalSnapshotRef = useRef<PlayerSnapshot | null>(null);
+  const dirtyRemotePlayerIdsRef = useRef<Set<string>>(new Set());
+  const removedRemotePlayerIdsRef = useRef<Set<string>>(new Set());
+
+  const syncPresenceState = useCallback(
+    (channel: RealtimeChannel) => {
+      const presenceState = channel.presenceState<PresenceState>();
+      const formattedUsers: Record<string, PresenceState> = {};
+      const previousPlayers = playersRef.current;
+      const nextPlayers: Record<string, PlayerSnapshot> = {};
+      const nextSequences: Record<string, number> = {};
+
+      Object.values(presenceState).forEach((presences) => {
+        if (presences.length === 0) return;
+
+        const latestPresence = getLatestPresence(presences as PresenceState[]);
+        if (!latestPresence) return;
+
+        formattedUsers[latestPresence.user_id] = latestPresence;
+
+        if (latestPresence.user_id === userId) return;
+
+        const seq = latestPresence.seq ?? 0;
+        nextSequences[latestPresence.user_id] = seq;
+
+        const currentSnapshot = playersRef.current[latestPresence.user_id];
+        const currentSnapshotSeq = currentSnapshot?.seq ?? -1;
+
+        if (currentSnapshot && currentSnapshotSeq > seq) {
+          nextPlayers[latestPresence.user_id] = currentSnapshot;
+          nextSequences[latestPresence.user_id] = currentSnapshotSeq;
+          return;
+        }
+
+        if (latestPresence.position) {
+          nextPlayers[latestPresence.user_id] = {
+            position: latestPresence.position,
+            user: {
+              id: latestPresence.user_id,
+              name: latestPresence.username,
+              profile_url:
+                latestPresence.profile_url || "default-avatar.png",
+              avatar: latestPresence.avatar || DEFAULT_AVATAR,
+            },
+            animation:
+              latestPresence.animation || currentSnapshot?.animation || DEFAULT_ANIMATION,
+            emote: currentSnapshot?.emote ?? null,
+            seq: Math.max(seq, currentSnapshot?.seq ?? 0),
+            timestamp:
+              currentSnapshot?.timestamp ??
+              new Date(latestPresence.online_at).getTime(),
+          };
+          return;
+        }
+
+        if (currentSnapshot) {
+          nextPlayers[latestPresence.user_id] = currentSnapshot;
+          nextSequences[latestPresence.user_id] = currentSnapshot.seq;
+        }
+      });
+
+      Object.keys(previousPlayers).forEach((playerId) => {
+        if (!nextPlayers[playerId]) {
+          removedRemotePlayerIdsRef.current.add(playerId);
+          dirtyRemotePlayerIdsRef.current.delete(playerId);
+        }
+      });
+
+      Object.entries(nextPlayers).forEach(([playerId, snapshot]) => {
+        const previousSnapshot = previousPlayers[playerId];
+
+        if (
+          !previousSnapshot ||
+          previousSnapshot.seq !== snapshot.seq ||
+          previousSnapshot.emote !== snapshot.emote ||
+          previousSnapshot.animation !== snapshot.animation ||
+          previousSnapshot.position.x !== snapshot.position.x ||
+          previousSnapshot.position.y !== snapshot.position.y
+        ) {
+          dirtyRemotePlayerIdsRef.current.add(playerId);
+        }
+      });
+
+      playersRef.current = nextPlayers;
+      latestRemoteSequenceRef.current = nextSequences;
+      setOnlineUsers(formattedUsers);
+    },
+    [setOnlineUsers, userId]
   );
 
-  // Estado para almacenar los usuarios conectados (presence)
-  // const [onlineUsers, setOnlineUsers] = useState<Record<string, PresenceState>>(
-  //   {}
-  // );
+  const trackPresence = useCallback(
+    async (snapshot: PlayerSnapshot, force = false) => {
+      const channel = channelRef.current;
+      if (!channel || !isConnectedRef.current) return;
 
-  const { onlineUsers, setOnlineUsers } = useOnlineUsers();
+      const nextPresence: PresenceState = {
+        user_id: userId,
+        username,
+        online_at: new Date().toISOString(),
+        profile_url,
+        avatar: avatar || DEFAULT_AVATAR,
+        position: snapshot.position,
+        animation: snapshot.animation || DEFAULT_ANIMATION,
+        seq: snapshot.seq,
+      };
 
-  // Referencia al canal de Supabase para poder enviár mensajes
-  const channelRef = useRef<RealtimeChannel | null>(null);
+      const previousPresence = lastPresenceTrackRef.current;
+      const timeSinceLastTrack = Date.now() - lastPresenceTrackAtRef.current;
 
-  // Función que prepara y envía los datos del movimiento del jugador
+      const shouldTrack =
+        force ||
+        !previousPresence ||
+        previousPresence.animation !== nextPresence.animation ||
+        hasMovedEnoughForPresence(previousPresence.position, nextPresence.position) ||
+        timeSinceLastTrack >= PRESENCE_UPDATE_INTERVAL_MS;
+
+      if (!shouldTrack) return;
+
+      await channel.track(nextPresence);
+      lastPresenceTrackRef.current = nextPresence;
+      lastPresenceTrackAtRef.current = Date.now();
+    },
+    [avatar, profile_url, userId, username]
+  );
+
+  const syncPresenceSnapshot = useCallback(
+    async (force = false) => {
+      const snapshot = lastLocalSnapshotRef.current;
+      if (!snapshot) return;
+
+      await trackPresence(snapshot, force);
+    },
+    [trackPresence]
+  );
+
   const callback = useCallback(
     (event: Player) => {
       const { position, user, animation, emote } = event;
+      const seq = ++localSequenceRef.current;
 
-      // Construye el payload con toda la información del jugador
-      const payload: PlayerEventPayload = {
+      const payload: PlayerSnapshot = {
         position: {
           x: position.x,
           y: position.y,
@@ -130,158 +315,137 @@ export const useRealtimePlayers = ({
           id: user.id || userId,
           name: user.name || username,
           profile_url: user.profile_url || profile_url,
-          avatar: user.avatar || "sofia",
+          avatar: user.avatar || avatar || DEFAULT_AVATAR,
         },
-        animation: animation,
-        emote: emote,
-        timestamp: new Date().getTime(), // Marca de tiempo para sincronización
+        animation: animation || DEFAULT_ANIMATION,
+        emote: emote ?? null,
+        seq,
+        timestamp: Date.now(),
       };
 
-      // Envía el movimiento a través del canal usando broadcast
-      channelRef.current?.send({
+      const previousSnapshot = lastLocalSnapshotRef.current;
+      lastLocalSnapshotRef.current = payload;
+
+      void channelRef.current?.send({
         type: "broadcast",
         event: EVENT_NAME,
-        payload: payload,
+        payload,
       });
+
+      const shouldRefreshPresence =
+        !previousSnapshot ||
+        previousSnapshot.animation !== payload.animation ||
+        previousSnapshot.emote !== payload.emote;
+
+      if (shouldRefreshPresence) {
+        void trackPresence(payload, true);
+      }
     },
-    [userId, username, color, profile_url]
+    [avatar, profile_url, trackPresence, userId, username]
   );
 
-  // Función throttled para manejar movimientos sin saturar la red
   const handlePlayerMove = useThrottleCallback(callback, throttleMs);
 
   useEffect(() => {
-    // Crea un canal único para esta sala/habitación
-    const channel = supabase.channel(roomName); // ej: "macrodata_refinement_office"
+    const channel = supabase.channel(roomName);
     channelRef.current = channel;
+    playersRef.current = {};
+    latestRemoteSequenceRef.current = {};
+    localSequenceRef.current = 0;
+    lastPresenceTrackRef.current = null;
+    lastPresenceTrackAtRef.current = 0;
+    lastLocalSnapshotRef.current = null;
+    dirtyRemotePlayerIdsRef.current.clear();
+    removedRemotePlayerIdsRef.current.clear();
+    isConnectedRef.current = false;
 
     channel
-      // LISTENER 1: Escucha movimientos de otros jugadores via broadcast
       .on(
         "broadcast",
         { event: EVENT_NAME },
-        (data: { payload: PlayerEventPayload }) => {
-          const { user } = data.payload;
-          // No renderizar tu propio jugador
-          if (user.id === userId) return;
+        (data: { payload: PlayerSnapshot }) => {
+          const snapshot = data.payload;
+          const remoteUserId = snapshot.user.id;
 
-          setPlayers((prev) => {
-            // Elimina tu propio jugador del estado (por si acaso)
-            if (prev[userId]) {
-              delete prev[userId];
-            }
+          if (remoteUserId === userId) return;
 
-            // Agrega o actualiza la posición del otro jugador
-            return {
-              ...prev,
-              [user.id]: data.payload,
-            };
-          });
+          const lastKnownSequence =
+            latestRemoteSequenceRef.current[remoteUserId] ?? -1;
+
+          if (snapshot.seq <= lastKnownSequence) return;
+
+          latestRemoteSequenceRef.current[remoteUserId] = snapshot.seq;
+          playersRef.current[remoteUserId] = snapshot;
+          dirtyRemotePlayerIdsRef.current.add(remoteUserId);
         }
       )
-      // LISTENER 2: Sincronización inicial de presence (usuarios conectados)
       .on("presence", { event: "sync" }, () => {
-        // Obtiene el estado completo de todos los usuarios conectados
-        const presenceState = channel.presenceState();
-        console.log("Sincronización de presencia:", presenceState);
-
-        // Convierte el estado de presence al formato que usamos
-        const formattedUsers: Record<string, PresenceState> = {};
-        Object.values(presenceState).forEach((presences) => {
-          if (presences.length > 0) {
-            const presence = presences[0] as unknown as PresenceState;
-            formattedUsers[presence.user_id] = presence;
-          }
-        });
-
-        setOnlineUsers(formattedUsers);
+        syncPresenceState(channel);
       })
-      // LISTENER 3: Cuando un nuevo usuario se conecta
-      .on("presence", { event: "join" }, ({ key, newPresences }) => {
-        console.log("Usuario se conectó:", key, newPresences);
-
-        if (newPresences.length > 0) {
-          const presence = newPresences[0] as unknown as PresenceState;
-
-          // No agregar tu propio usuario
-          if (presence.user_id === userId) return;
-
-          // Agregar a la lista de usuarios conectados
-          setOnlineUsers((prev) => ({
-            ...prev,
-            [newPresences[0].user_id]: presence,
-          }));
-
-          // También agregar al estado de players con una posición inicial
-          setPlayers((prev) => ({
-            ...prev,
-            [presence.user_id]: {
-              position: {
-                x: 960, // Posición inicial por defecto
-                y: 994,
-              },
-              user: {
-                id: presence.user_id,
-                name: presence.username,
-                profile_url: presence.profile_url || "default-avatar.png",
-                avatar: presence.avatar || "sofia",
-              },
-              animation: "idle-down",
-              emote: null,
-              timestamp: new Date().getTime(),
-            },
-          }));
-        }
+      .on("presence", { event: "join" }, () => {
+        syncPresenceState(channel);
       })
-      // LISTENER 4: Cuando un usuario se desconecta
-      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-        console.log("Usuario se desconectó:", key, leftPresences);
-
-        if (leftPresences.length > 0) {
-          const leftPresence = leftPresences[0] as unknown as PresenceState;
-
-          // No procesar tu propia desconexión (aunque no debería pasar)
-          if (leftPresence.user_id === userId) return;
-
-          // Elimina el usuario de la lista de conectados
-          setOnlineUsers((prev) => {
-            const updated = { ...prev };
-            delete updated[leftPresence.user_id];
-            return updated;
-          });
-
-          // También elimina al jugador del mapa cuando se desconecta
-          setPlayers((prev) => {
-            const updated = { ...prev };
-            delete updated[leftPresence.user_id];
-            return updated;
-          });
-        }
+      .on("presence", { event: "leave" }, () => {
+        syncPresenceState(channel);
       })
-      // Se suscribe al canal y cuando esté listo, trackea la presencia
       .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          // Registra la presencia del usuario actual en el canal
-          await channel.track({
-            user_id: userId,
-            username: username,
-            online_at: new Date().toISOString(),
-            profile_url: profile_url,
-            avatar: avatar || "sofia",
-          });
-        }
+        if (status !== "SUBSCRIBED") return;
+
+        isConnectedRef.current = true;
+
+        const initialSnapshot: PlayerSnapshot = {
+          position: initialPosition,
+          user: {
+            id: userId,
+            name: username,
+            profile_url,
+            avatar: avatar || DEFAULT_AVATAR,
+          },
+          animation: DEFAULT_ANIMATION,
+          emote: null,
+          seq: localSequenceRef.current,
+          timestamp: Date.now(),
+        };
+
+        lastLocalSnapshotRef.current = initialSnapshot;
+        await syncPresenceSnapshot(true);
       });
 
+    const heartbeat = window.setInterval(() => {
+      void syncPresenceSnapshot();
+    }, PRESENCE_HEARTBEAT_MS);
+    const dirtyRemotePlayerIds = dirtyRemotePlayerIdsRef.current;
+    const removedRemotePlayerIds = removedRemotePlayerIdsRef.current;
+
     return () => {
-      // Limpieza: desuscribirse del canal
-      // Supabase automáticamente hace untrack() de la presencia
-      channel.unsubscribe();
+      window.clearInterval(heartbeat);
+      isConnectedRef.current = false;
+      playersRef.current = {};
+      latestRemoteSequenceRef.current = {};
+      dirtyRemotePlayerIds.clear();
+      removedRemotePlayerIds.clear();
+      lastLocalSnapshotRef.current = null;
+      setOnlineUsers({});
+      channelRef.current = null;
+      void supabase.removeChannel(channel);
     };
-  }, [roomName, userId, username]);
+  }, [
+    avatar,
+    initialPosition,
+    profile_url,
+    roomName,
+    setOnlineUsers,
+    syncPresenceState,
+    syncPresenceSnapshot,
+    trackPresence,
+    userId,
+    username,
+  ]);
 
   return {
-    players, // Posiciones actuales de todos los jugadores
-    onlineUsers, // Lista de usuarios conectados con su info de presencia
-    handlePlayerMove, // Función para enviar movimientos (con throttle)
+    dirtyRemotePlayerIdsRef,
+    removedRemotePlayerIdsRef,
+    playersRef,
+    handlePlayerMove,
   };
 };
